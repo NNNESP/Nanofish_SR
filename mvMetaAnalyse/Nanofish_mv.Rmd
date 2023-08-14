@@ -1,0 +1,1030 @@
+---
+title: "Nanofish_mv"
+author: "Querusche"
+date: "2023-04-16"
+output:
+  pdf_document: default
+  html_document: default
+  df_print: paged
+---
+## Tutorials from:
+- Yefeng Yang, Malcom Macleaod, Jinming Pan, Malgorzata Lagisz, Shinichi Nakagawa, 2022. The current practices of meta-analyses using animal models, and underappreciated opportunities using advanced methods: multilevel models and robust variance estimation. Neuroscience & Biobehavioral Reviews.
+https://doi.org/10.1016/j.neubiorev.2022.105016
+
+- Wolfgang Viechtbauer https://www.metafor-project.org
+https://wviechtb.github.io/metafor/reference/misc-recs.html
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+rmarkdown::html_document(df_print = rmarkdown::paged_table)
+
+devtools::install_github("daniel1noble/orchaRd", ref = "main", force = TRUE)
+pacman::p_load(devtools, tidyverse, metafor, patchwork, R.rsp, orchaRd, emmeans,
+    ape, phytools, flextable)
+
+library(clubSandwich)
+library(GGally)
+library(ggplot2)
+library(gridExtra)
+library(pacman)
+library(metafor)
+library(dplyr)
+library(tidyverse)
+library(gt) # https://posit.co/blog/great-looking-tables-gt-0-2/
+```
+# Functions definition
+```{r, echo=FALSE}
+set_plot_dimensions <- function(width_choice, height_choice) {
+        options(repr.plot.width=width_choice, repr.plot.height=height_choice)
+}
+
+forest_plot <- function(model,outcome,modelID){
+devstage_list = as.character(unique(model$data$DevelopmentalStage))
+devstage_n =    n_distinct(model$data$DevelopmentalStage)
+devstage_rows = vector("list",devstage_n)
+devstage_shade_rows =c()
+k=1
+for (x in devstage_list){
+  if (is.na(x))
+    {devstage_rows[[k]] = which(rev(is.na(model$data$DevelopmentalStage)))+devstage_n-k
+  } else {
+      devstage_rows[[k]]= which(rev(model$data$DevelopmentalStage)==x)+devstage_n-k}
+  if (k==1|k==3|k==5)
+  {devstage_shade_rows = c(devstage_shade_rows,devstage_rows[[k]],max(devstage_rows[[k]])+1)}
+  
+  k=k+1
+}
+addlines = switch(devstage_n, 4, 3, 2, 1)
+
+pdf(file=paste('Figures/Forest plot_', outcome,"_",modelID,'.pdf',sep=""),paper="A4")
+### forest plot with extra annotations
+forestplot<-forest.rma(model, 
+           annotate=TRUE, 
+           addpred=TRUE,
+           showweights=FALSE,
+           header=c("Author (s) and Year"),
+           #xlim = c(min(df$yi-df$vi),max(df$yi+df$vi))*c(10,2),
+           #alim, olim, ylim, at, 
+           ylim=c(-1.5,max(unlist(devstage_rows))+devstage_n+addlines),
+           rows=unlist(devstage_rows),
+           steps=5,
+           level=model$level,
+           refline=0,
+           digits=2, 
+           width=(1),
+           xlab = paste("Standartized Mean Difference for",
+                        as.character(outcome)), 
+           slab = Study,
+           mlab = "RE null model",
+           ilab = cbind(#as.character(DevelopmentalStage), 
+                        format(10^ExposureDurationDays,digits=1), 
+                        format(round(10^ParticleSizeMean,2),trim=TRUE),
+                        format(round(Concentration_mg_L,1), trim=TRUE)),
+           shade = devstage_shade_rows,
+           #colout = df$StudyCluster
+           )
+
+text(x=forestplot$ilab.xpos, 
+     y=forestplot$ylim[2]-1, 
+     c(#"Develop.\n stage", 
+       "Exp.\n days", 
+       "Particle \n size (µm)",
+       "Conc. \n log₁₀[mg/L]"),
+     cex=forestplot$cex*0.75,
+     font = 2)
+text(x=forestplot$textpos[1],
+     y=setdiff(1:1:(max(unlist(devstage_rows))+1),unlist(devstage_rows)),
+     rev(devstage_list),
+     font=4,
+     cex=forestplot$cex*0.8,
+     pos=4)
+text(x=forestplot$textpos[1], 
+     y=max(unlist(devstage_rows))+2,#forestplot$ylim[1]*2,
+    paste("Clusters / Studies / Experiments:",
+          paste(n_distinct(model$data$StudyCluster),n_distinct(model$data$Study),n_distinct(model$data$EScluster),sep = " / ")),
+    font = 2,
+    cex=forestplot$cex*0.75,
+    pos=4)
+dev.off()}
+
+
+forestmeta_plot <- function(model,outcome,modelID,moderators){
+devstage_list = as.character(unique(model$data$DevelopmentalStage))
+devstage_n =    n_distinct(model$data$DevelopmentalStage)
+devstage_rows = vector("list",devstage_n)
+devstage_shade_rows =c()
+k=1
+for (x in devstage_list){
+  if (is.na(x))
+    {devstage_rows[[k]] = which(rev(is.na(model$data$DevelopmentalStage)))+devstage_n-k
+  } else {
+      devstage_rows[[k]]= which(rev(model$data$DevelopmentalStage)==x)+devstage_n-k}
+  if (k==1|k==3|k==5)
+  {devstage_shade_rows = c(devstage_shade_rows,devstage_rows[[k]],max(devstage_rows[[k]])+1)}
+  
+  k=k+1
+}
+addlines = switch(devstage_n, 4, 3, 2, 1)
+
+pdf(file=paste('Figures/Forest plot_', outcome,"_",modelID,'.pdf',sep=""),paper="A4")
+### forest plot with extra annotations
+forestplot<-forest.rma(model, 
+           annotate=TRUE, 
+           addfit=TRUE,
+           addpred=TRUE,
+           showweights=FALSE,
+           mods = moderators,
+           header=c("Author (s) and Year"),
+           #xlim = c(min(df$yi-df$vi),max(df$yi+df$vi))*c(10,2),
+           #alim, olim, ylim, at, 
+           ylim=c(-1.5,max(unlist(devstage_rows))+devstage_n+addlines),
+           rows=unlist(devstage_rows),
+           steps=5,
+           level=model$level,
+           refline=0,
+           digits=2, 
+           width=(1),
+           xlab = paste("Standartized Mean Difference for",
+                        as.character(outcome)), 
+           slab = Study,
+           mlab = "RE null model",
+           ilab = cbind(#as.character(DevelopmentalStage), 
+                        format(10^ExposureDurationDays,digits=1), 
+                        format(round(10^ParticleSizeMean,2),trim=TRUE),
+                        format(round(Concentration_mg_L,1), trim=TRUE)),
+           shade = devstage_shade_rows,
+           #colout = df$StudyCluster
+           )
+
+text(x=forestplot$ilab.xpos, 
+     y=forestplot$ylim[2]-1, 
+     c(#"Develop.\n stage", 
+       "Exp.\n days", 
+       "Particle \n size (µm)",
+       "Conc. \n log₁₀[mg/L]"),
+     cex=forestplot$cex*0.75,
+     font = 2)
+text(x=forestplot$textpos[1],
+     y=setdiff(1:1:(max(unlist(devstage_rows))+1),unlist(devstage_rows)),
+     rev(devstage_list),
+     font=4,
+     cex=forestplot$cex*0.8,
+     pos=4)
+text(x=forestplot$textpos[1], 
+     y=max(unlist(devstage_rows))+2,#forestplot$ylim[1]*2,
+    paste("Clusters / Studies / Experiments:",
+          paste(n_distinct(model$data$StudyCluster),n_distinct(model$data$Study),n_distinct(model$data$EScluster),sep = " / ")),
+    font = 2,
+    cex=forestplot$cex*0.75,
+    pos=4)
+dev.off()}
+```
+
+## Preparing data
+1 - load data 
+2 - configures factor and numeral variables
+3 - transformations of numeral variables
+
+NA = not applicable
+Unclear = unavailable information on the paper
+
+```{r Load data, echo=FALSE}
+file <- "Resume - mvMetaAnalysis.csv"
+df_original <- read.csv(file,  header = TRUE, stringsAsFactors = TRUE, na.strings = c("NA", "Unclear", "4 Unclear"))
+
+# check classes
+# str(df_original) # another option
+
+# choose classes
+df_original$StudyCluster <- factor(df_original$StudyCluster)
+df_original$EScluster <- factor(df_original$EScluster)
+df_original$DevelopmentalStage<-factor(sub(".* ", "", df_original$DevelopmentalStage), # remove numbers
+                                       levels = c("Embrio","Larva","Juvenile","Adult"))
+
+df_original$ExposureDurationDays<-log10(df_original$ExposureDurationDays+1) 
+df_original$Concentration_mg_L<-log10(df_original$Concentration_mg_L) 
+df_original$ParticleSizeMean<-log10(df_original$ParticleSizeMean)
+
+summary(df_original)
+
+variables <- variable.names(df_original)
+
+df_original <- select(df_original, c("StudyCluster", "Study", "Year","EScluster", 
+                          "Species","Sex","DevelopmentalStage",
+                          "ParticleMaterial", "ParticleShape", "ParticleSizeMean", "ParticleSizeCat",
+                          "AdministrationRoute", "Concentration_mg_L",
+                          "ExposureDurationCat", "ExposureDurationDays",
+                          "Outcome",
+                          "n_ctrl", "mean_ctrl", "STD_ctrl",
+                          "n_treat", "mean_treat", "STD_treat", "SE_ctrl", "SE_treat"))
+
+outcomeslist = unique(df_original$Outcome)
+
+moderatorslist = c(   "Species",
+                      "Sex",
+                      "DevelopmentalStage",
+                      "ParticleMaterial", 
+                      "ParticleShape", 
+                      "ParticleSizeMean",
+                      "AdministrationRoute", 
+                      "Concentration_mg_L",
+                      "ExposureDurationDays")
+
+outcomeslist
+moderatorslist
+```
+## Calculate effect size
+"SMD" for the standardized mean difference (Hedges, 1981)
+"SMDH" for the standardized mean difference with heteroscedastic population variances in the two groups (Bonett, 2008, 2009)
+
+UB = to compute unbiased estimates of the sampling variances (equation 9 in Hedges, 1983)
+```{r}
+df_original <- escalc(measure = "SMD", 
+             n1i = n_treat, #n of treatment group
+             n2i = n_ctrl, #n of control group
+             m1i = mean_treat, #mean of treatment group 
+             m2i = mean_ctrl, #mean of control group
+             sd1i = STD_treat, #sd of treatment group
+             sd2i = STD_ctrl, #sd of control group
+             data = df_original, vtype = "UB") 
+```
+
+## Descriptives plots
+```{r, echo=FALSE}
+#ggpairs(df_original, mapping = aes(color = Shape, alpha = 0.3), columns = moderatorslist,title = "")
+pdf(file='Figures/Boxplot_ESbyOutcome.pdf') # Open SVG device with specific file name
+df_original %>%
+  mutate(class = fct_reorder(Outcome, yi, .fun='length' )) %>%
+  ggplot( aes(yi, class, fill=class))+ 
+    geom_boxplot() +
+    xlab("ES") + 
+    ylab("") +
+    theme_bw(base_size = 18) +
+    theme(legend.position="none")
+set_plot_dimensions(7, 4)
+dev.off() 
+
+```
+## Null model and data inspection through forest plot
+In order to detect anomalies on the data and review the data bank, when necessary, first one null model was elaborated for each variable folowed by their respective forest plot.
+https://wviechtb.github.io/metafor/reference/forest.rma.html
+```{r, echo=FALSE}
+res.null = vector("list",nlevels(outcomeslist))
+
+n_outcome = 5
+for(n_outcome in sequence(nlevels(outcomeslist)))
+{
+df <- df_original[ which(df_original$Outcome==outcomeslist[n_outcome] ),]
+df <-df[order(df$DevelopmentalStage,-df$yi),]
+
+### fit random-effects null model
+res.null[[n_outcome]] <- rma.mv(yi, vi, 
+                                data=df, 
+                                method="ML")
+
+forest_plot(res.null[[n_outcome]],outcomeslist[[n_outcome]],"NULLmodel")
+}
+```
+
+
+# Likelihood ratio tests and Profile Likelihood Plots of sigma
+## Model comparison for appropriete random-effect structure: Likelihood ratio tests
+Random effects candidates:
+- Effect size cluster
+- Study
+- Study cluster
+OBS: when using AIC criteria use maximum likelihood (ML) rather than restricted maximum likelihood (REML)
+
+```{r, echo=FALSE}
+# create variable to store random effects model
+res.random_effects = vector("list",nlevels(outcomeslist))
+resRF.ExpID =        vector("list",nlevels(outcomeslist))
+resRF.StudyID =      vector("list",nlevels(outcomeslist))
+resRF.StudyCluster = vector("list",nlevels(outcomeslist))
+resRF.StudyIDExpID = vector("list",nlevels(outcomeslist))
+resRF.StudyClusterStudyIDExpID = vector("list",nlevels(outcomeslist))
+
+# run model, inspect results, select model random effects structure for each variable, then plot the profile for each random effect included.
+for(n_outcome in sequence(nlevels(outcomeslist)))
+  {
+df <- df_original[ which(df_original$Outcome==outcomeslist[n_outcome] ),]
+df <-df[order(df$DevelopmentalStage,-df$yi),]
+
+resRF.ExpID[[n_outcome]] <- rma.mv(yi, vi, 
+            random = list(~ 1 | EScluster), 
+            data=df, 
+            method="ML")
+resRF.StudyID[[n_outcome]] <- rma.mv(yi, vi, 
+            random = ~ 1 | Study, 
+            data=df, 
+            method="ML")
+resRF.StudyCluster[[n_outcome]] <- rma.mv(yi, vi, 
+            random = ~ 1 | StudyCluster, 
+            data=df, 
+            method="ML")
+resRF.StudyIDExpID[[n_outcome]] <- rma.mv(yi, vi, 
+            random = ~ 1 | Study/EScluster, 
+            data=df, 
+            method="ML")
+resRF.StudyClusterStudyIDExpID[[n_outcome]] <- rma.mv(yi, vi, 
+            random = ~ 1 | StudyCluster/Study/EScluster, 
+            data=df, 
+            method="ML")
+}
+rm("df")
+
+# Inspect Results
+## create table of results
+columns = c("LRT 1","pval 1","LRT 2","pval 2","LRT 3","pval 3","LRT 4","pval 4","LRT 5","pval 5","LRT 6","pval 6") 
+rst_tbl_RF = data.frame(matrix(nrow = 0, ncol = length(columns))) 
+colnames(rst_tbl_RF) = columns
+
+## run analysis
+for(n_outcome in sequence(nlevels(outcomeslist)))
+  {
+anova1.ExpID_null           <- anova.rma(resRF.ExpID[[n_outcome]], res.null[[n_outcome]])
+anova2.StudyID_null         <- anova.rma(resRF.StudyID[[n_outcome]], res.null[[n_outcome]])
+anova3.StudyCluster_null    <- anova.rma(resRF.StudyCluster[[n_outcome]], res.null[[n_outcome]])
+anova4.StudyIDExpID_ExpID   <- anova.rma(resRF.StudyIDExpID[[n_outcome]], resRF.ExpID[[n_outcome]])
+anova5.StudyIDExpID_StudyID <- anova.rma(resRF.StudyIDExpID[[n_outcome]], resRF.StudyID[[n_outcome]])
+anova6.Full_StudyIDExpID    <- anova.rma(resRF.StudyClusterStudyIDExpID[[n_outcome]],resRF.StudyIDExpID[[n_outcome]])
+
+rst_tbl_RF[n_outcome,] = round(c(anova1.ExpID_null$LRT,          anova1.ExpID_null$pval, 
+                                anova2.StudyID_null$LRT,         anova2.StudyID_null$pval,
+                                anova3.StudyCluster_null$LRT,    anova3.StudyCluster_null$pval,
+                                anova4.StudyIDExpID_ExpID$LRT,   anova4.StudyIDExpID_ExpID$pval,
+                                anova5.StudyIDExpID_StudyID$LRT, anova5.StudyIDExpID_StudyID$pval,
+                                anova6.Full_StudyIDExpID$LRT,    anova6.Full_StudyIDExpID$pval),3)}
+Outcome = outcomeslist
+rst_tbl_RF = cbind(Outcome,rst_tbl_RF)
+
+gt(rst_tbl_RF,rowname_col = "Outcome",) %>%
+tab_source_note( "1 = Exp. vs Null,
+                 2 = Study vs Null,
+                 3 = Cluster vs Null,
+                 4 = Study+Exp. vs Exp.,
+                 5 = Study+Exp. vs Study,
+                 6 = Cluster+Study+Exp. vs Study+Exp.") %>%
+cols_align(align = "right", columns = 2:13)%>%
+cols_align(align = "left", columns = 1)
+
+rm(list = ls(pat = "anova"))
+```
+```{r, echo=TRUE}
+## keep chosen Random Effects model
+for(n_outcome in sequence(nlevels(outcomeslist)))
+{
+  switch(n_outcome, 
+  {res.random_effects[[n_outcome]] <- resRF.StudyClusterStudyIDExpID[[n_outcome]]}, # n_outcome = 1 (Full model only)
+  {res.random_effects[[n_outcome]] <- resRF.StudyIDExpID[[n_outcome]]  },     # n_outcome = 2 (Study only possible)
+  {res.random_effects[[n_outcome]] <- resRF.StudyID[[n_outcome]]       },     # n_outcome = 3 (Is a Study only analysis)
+  {res.random_effects[[n_outcome]] <- resRF.StudyIDExpID[[n_outcome]]  },     # n_outcome = 4 (Study only possible)
+  {res.random_effects[[n_outcome]] <- resRF.StudyIDExpID[[n_outcome]]  },     # n_outcome = 5 (Study and EScluster)
+  {res.random_effects[[n_outcome]] <- resRF.StudyIDExpID[[n_outcome]]  },     # n_outcome = 6 (null model possible)
+  {res.random_effects[[n_outcome]] <- resRF.StudyIDExpID[[n_outcome]]  },     # n_outcome = 7 (Study only possible)
+  {res.random_effects[[n_outcome]] <- resRF.StudyIDExpID[[n_outcome]]  },     # n_outcome = 8 (Study only possible)
+  {res.random_effects[[n_outcome]] <- resRF.StudyIDExpID[[n_outcome]]  },     # n_outcome = 9 (Study only possible)
+  {res.random_effects[[n_outcome]] <- resRF.StudyIDExpID[[n_outcome]]  },     # n_outcome = 10 (Study only possible)
+  {res.random_effects[[n_outcome]] <- resRF.StudyIDExpID[[n_outcome]]  },     # n_outcome = 11 (Study and EScluster)
+  {res.random_effects[[n_outcome]] <- resRF.StudyIDExpID[[n_outcome]]  },     # n_outcome = 12 (Study only possible)
+  {res.random_effects[[n_outcome]] <- resRF.StudyID[[n_outcome]]       })     # n_outcome = 13 (Is a Study only analysis)
+}
+rm(list = ls(pat = "resRF"))
+```
+## Are the variance components identifiable? Profile Likelihood Plots
+When profile likelihood plots are peaked at the respective parameter estimates and the log likelihoods quickly decrease (i.e., become more negative) as the values of the components are moved away from the actual REML estimates, it shows that that the variance component is identifiable.
+When there are missing points the model did not converge for some of the profile points.
+When large parts of the profiles are flat, indicates that the model is overparameterized.
+
+"Profile likelihood plots of the variance components are shown in Figure A (Model 1) and Figure B (Model 2). In this procedure, σ_1^2 (variance at the study level) and σ_2^2 (variance at the sample level) were fixed at different values (i.e., all the positions of the dots on the x-axis). For each value of σ_1^2 and σ_2^2, the (logarithm of the) likelihood over the remaining model parameters, such as the fixed effects, was estimated (Viechtbauer, 2010). This means it was estimated how likely the values of these parameters are given the observed data. Less negative values of the logarithm indicate a higher likelihood than more negative values. It can be seen that the likelihood was estimated to be the highest for the values of σ_1^2 and σ_2^2 that had been estimated in the original models (0.31 and 0.21 for Model 1, and 0.49 and 0.05 for Model 2). This, and also the fact that the log-likelihoods become more negative as the values of σ2 move away from the parameter estimates, suggest that we can be “fairly confident” that our meta-analytic models could identify the variance components (Viechtbauer, 2017)."
+```{r, echo=FALSE,fig.height=6, fig.width=3}
+for(n_outcome in sequence(nlevels(outcomeslist)))
+{
+  pdf(file=paste('Figures/Profile likelihood plot_',
+                  outcomeslist[n_outcome],'.pdf',sep=""),paper="A4")
+  switch(n_outcome, 
+       
+# n_outcome = 1 (Full model only -> profile ok)
+  {par(mfrow=c(3,1))
+    profile(res.random_effects[[n_outcome]] , sigma2=1)
+    title(sub = "Study Cluster",cex.sub = 1)
+    profile(res.random_effects[[n_outcome]] , sigma2=2)
+    title(sub = "Study",cex.sub = 1)
+    profile(res.random_effects[[n_outcome]] , sigma2=3)
+    title(sub = "ES cluster",cex.sub = 1)
+    mtext(outcomeslist[n_outcome],cex=0.6,side = 3, line = -1.2, outer = TRUE)},
+  
+# n_outcome = 2 (Study only possible -> profile ok)
+  {par(mfrow=c(3,1))
+    profile(res.random_effects[[n_outcome]] , sigma2=1)
+    title(sub = "Study",cex.sub = 1)
+    profile(res.random_effects[[n_outcome]] , sigma2=2)
+    title(sub = "ES cluster",cex.sub = 1)
+    mtext(outcomeslist[n_outcome],cex=0.6,side = 3, line = -1.2, outer = TRUE)},
+  
+# n_outcome = 3 (Is a Study only analysis -> profile ok)
+  {par(mfrow=c(3,1))
+    profile(res.random_effects[[n_outcome]] , sigma2=1)
+    title(sub = "Study",cex.sub = 1)
+    mtext(outcomeslist[n_outcome],cex=0.6,side = 3, line = -1.2, outer = TRUE)},
+  
+# n_outcome = 4 (Study only possible -> profile ok)
+  {par(mfrow=c(3,1))
+    profile(res.random_effects[[n_outcome]] , sigma2=1)
+    title(sub = "Study",cex.sub = 1)
+    profile(res.random_effects[[n_outcome]] , sigma2=2)
+    title(sub = "ES cluster",cex.sub = 1)
+    mtext(outcomeslist[n_outcome],cex=0.6,side = 3, line = -1.2, outer = TRUE)},
+  
+# n_outcome = 5 (Study and EScluster -> profile ok)
+  {par(mfrow=c(3,1))
+    profile(res.random_effects[[n_outcome]] , sigma2=1)
+    title(sub = "Study",cex.sub = 1)
+    profile(res.random_effects[[n_outcome]] , sigma2=2)
+    title(sub = "ES cluster",cex.sub = 1)
+    mtext(outcomeslist[n_outcome],cex=0.6,side = 3, line = -1.2, outer = TRUE)},
+  
+# n_outcome = 6 (null model possible -> profile ok)
+  {par(mfrow=c(3,1))
+    profile(res.random_effects[[n_outcome]] , sigma2=1)
+    title(sub = "Study",cex.sub = 1)
+    profile(res.random_effects[[n_outcome]] , sigma2=2)
+    title(sub = "ES cluster",cex.sub = 1)
+    mtext(outcomeslist[n_outcome],cex=0.6,side = 3, line = -1.2, outer = TRUE)},
+  
+# n_outcome = 7 (Study only possible -> overparameterized?)
+  {par(mfrow=c(3,1))
+    profile(res.random_effects[[n_outcome]] , sigma2=1)
+    profile(res.random_effects[[n_outcome]] , sigma2=2)},
+  
+# n_outcome = 8 (Study only possible -> profile ok)
+  {par(mfrow=c(3,1))
+    profile(res.random_effects[[n_outcome]] , sigma2=1)
+    title(sub = "Study",cex.sub = 1)
+    profile(res.random_effects[[n_outcome]] , sigma2=2)
+    title(sub = "ES cluster",cex.sub = 1)
+    mtext(outcomeslist[n_outcome],cex=0.6,side = 3, line = -1.2, outer = TRUE)},
+  
+# n_outcome = 9 (Study only possible -> profile ok)
+  {par(mfrow=c(3,1))
+    profile(res.random_effects[[n_outcome]] , sigma2=1)
+    title(sub = "Study",cex.sub = 1)
+    profile(res.random_effects[[n_outcome]] , sigma2=2)
+    title(sub = "ES cluster",cex.sub = 1)
+    mtext(outcomeslist[n_outcome],cex=0.6,side = 3, line = -1.2, outer = TRUE)},
+  
+# n_outcome = 10 (Study only possible -> overparameterized?)
+  {par(mfrow=c(3,1))
+    profile(res.random_effects[[n_outcome]] , sigma2=1)
+    title(sub = "Study",cex.sub = 1)
+    profile(res.random_effects[[n_outcome]] , sigma2=2)
+    title(sub = "ES cluster",cex.sub = 1)
+    mtext(outcomeslist[n_outcome],cex=0.6,side = 3, line = -1.2, outer = TRUE)},
+  
+# n_outcome = 11 (Study and EScluster -> profile ok)
+  {par(mfrow=c(3,1))
+    profile(res.random_effects[[n_outcome]] , sigma2=1)
+    title(sub = "Study",cex.sub = 1)
+    profile(res.random_effects[[n_outcome]] , sigma2=2)
+    title(sub = "ES cluster",cex.sub = 1)
+    mtext(outcomeslist[n_outcome],cex=0.6,side = 3, line = -1.2, outer = TRUE)},
+  
+# n_outcome = 12 (Study only possible -> profile ok)
+  {par(mfrow=c(3,1))
+    profile(res.random_effects[[n_outcome]] , sigma2=1)
+    title(sub = "Study",cex.sub = 1)
+    profile(res.random_effects[[n_outcome]] , sigma2=2)
+    title(sub = "ES cluster",cex.sub = 1)
+    mtext(outcomeslist[n_outcome],cex=0.6,side = 3, line = -1.2, outer = TRUE)},
+  
+# n_outcome = 13 (Is a Study only analysis -> profile ok)
+  {par(mfrow=c(3,1))
+    profile(res.random_effects[[n_outcome]] , sigma2=1)
+    title(sub = "Study",cex.sub = 1)
+    mtext(outcomeslist[n_outcome],cex=0.6,side = 3, line = -1.2, outer = TRUE)}
+    )
+  dev.off()
+   }
+```
+### Conclusions
+**For 1 - AChE**
+
+*1 - ES cluster x null*
+The log-likelihood ratio test shows that adding EScluster as a random-effects term in comparison to a null model *can* significantly improve the model fit (LRT = 234.9732, pval = <.0001).
+
+*2 - Study x null*
+The log-likelihood ratio test shows that adding Study as a random-effects term in comparison to a null model *can* significantly improve the model fit (LRT = 253.2503, pval = <.0001).
+
+*3 - Study cluster x null*
+The log-likelihood ratio test shows that adding StudyCluster as a random-effects term in comparison to a null model *can* significantly improve the model fit (LRT = 183.5975, pval = <.0001).
+
+*4 - Study + ES cluster x ES cluster*
+The log-likelihood ratio test shows that adding Study/EScluster as a random-effects term in comparison to a model with only EScluster as random-effects term *can* significantly improve the model fit (LRT = 	30.7063, pval = <.0001).
+
+*5 - Study + ES cluster x Study*
+The log-likelihood ratio test shows that adding Study/EScluster as a random-effects term in comparison to a model with only Study as random-effects term *can* significantly improve the model fit (LRT = 	12.4293, pval = 0.0004).
+
+*6 - Study cluster + Study + ES cluster x Study + ES cluster*
+The log-likelihood ratio test shows that adding Study cluster/Study/EScluster as a random-effects term in comparison to a model with Study/EScluster as random-effects term *can* significantly improve the model fit (LRT = 	4.9015, pval = 0.0268).
+
+*Conclusion*
+The model should incorporate Study cluster, Study and ES cluster as random variables.
+
+**For 2 - Lipid peroxidation**
+*1 - ES cluster x null*
+The log-likelihood ratio test shows that adding EScluster as a random-effects term in comparison to a null model *can* significantly improve the model fit (LRT = 126.2508, pval = <.0001).
+
+*2 - Study x null*
+The log-likelihood ratio test shows that adding Study as a random-effects term in comparison to a null model *can* significantly improve the model fit (LRT = 141.9389, pval = <.0001).
+
+*3 - Study cluster x null*
+The log-likelihood ratio test shows that adding StudyCluster as a random-effects term in comparison to a null model *can* significantly improve the model fit (LRT = 133.4897, pval = <.0001).
+
+*4 - Study + ES cluster x ES cluster*
+The log-likelihood ratio test shows that adding Study/EScluster as a random-effects term in comparison to a model with only EScluster as random-effects term *can* significantly improve the model fit (LRT = 	16.0296, pval = <.0001).
+
+*5 - Study + ES cluster x Study*
+The log-likelihood ratio test shows that adding Study/EScluster as a random-effects term in comparison to a model with only Study as random-effects term *can not* significantly improve the model fit (LRT = 0.3415, pval = 0.5590).
+
+*6 - Study cluster + Study + ES cluster x Study + ES cluster*
+The log-likelihood ratio test shows that adding Study cluster/Study/EScluster as a random-effects term in comparison to a model with Study/EScluster as random-effects term *can not* significantly improve the model fit (LRT = 	2.0261, pval = 0.1546).
+
+*Conclusion*
+The model could incorporate Study as only random variable, since there is no further significant improvement of the model fit with Study cluster and ES cluster. But, 3 papers have more than one experiment, then ES cluster will not be ignored.
+
+**For 3 - Feeding Time**
+*1 - ES cluster x null*
+For Feeding Time: The log-likelihood ratio test shows that adding EScluster as a random-effects term in comparison to a null model *can* significantly improve the model fit (LRT = 11.8219, pval = 0.0006).
+
+*2 - Study x null*
+For Feeding Time: The log-likelihood ratio test shows that adding Study as a random-effects term in comparison to a null model *can* significantly improve the model fit (LRT = 11.8219, pval = 0.0006).
+
+*3 - Study cluster x null*
+For Feeding Time: The log-likelihood ratio test shows that adding StudyCluster as a random-effects term in comparison to a null model *can not* significantly improve the model fit (LRT = 0, pval = 1).
+
+*4 - Study + ES cluster x ES cluster*
+For Feeding Time: The log-likelihood ratio test shows that adding Study + EScluster as a random-effects term in comparison to a model with only EScluster as random-effects term *can not* significantly improve the model fit (LRT = 0, pval = 1).
+
+*5 - Study + ES cluster x Study*
+The log-likelihood ratio test shows that adding Study/EScluster as a random-effects term in comparison to a model with only Study as random-effects term *can not* significantly improve the model fit (LRT = 0, pval = 1).
+
+*Conclusion*
+The model should incorporate only Study or ES cluster as random variable and the variable Study Cluster can be ignored. Is there more than one experiment for any of the included studies? No, each Study only has one experiment.
+Due to the importance of the Study level on Systematic reviews, this is the variable that shall be used.
+
+**For 4 - Motor Function**
+
+*1 - ES cluster x null*
+The log-likelihood ratio test shows that adding EScluster as a random-effects term in comparison to a null model *can* significantly improve the model fit (LRT = 212.1827, pval = <.0001).
+
+*2 - Study x null*
+The log-likelihood ratio test shows that adding Study as a random-effects term in comparison to a null model *can* significantly improve the model fit (LRT = 213.0758, pval = <.0001).
+
+*3 - Study cluster x null*
+The log-likelihood ratio test shows that adding StudyCluster as a random-effects term in comparison to a null model *can not* significantly improve the model fit (LRT = 1.8570, pval = 0.1730).
+
+*4 - Study + ES cluster x ES cluster*
+The log-likelihood ratio test shows that adding Study/EScluster as a random-effects term in comparison to a model with only EScluster as random-effects term *can not* significantly improve the model fit (LRT = 	1.7195, pval = 0.1898).
+
+*5 - Study + ES cluster x Study*
+The log-likelihood ratio test shows that adding Study/EScluster as a random-effects term in comparison to a model with only Study as random-effects term *can not* significantly improve the model fit (LRT = 	0.8264, pval = 0.3633).
+
+*Conclusion*
+The model should incorporate only Study or ES cluster as random variable and the variable Study Cluster can be ignored. Is there more than one experiment for any of the included studies? Yes, Cormier et al (2021) and Chae et al (2018) have more than one experiment in the paper and each ES varies for species and/or plastic. Five studies have more than one observation for the same experiment.
+Although there is no need for better model fitting over a only ES cluster or Study, due to data characteristics, Study and ES cluster will be used as random-effects variables in the model.
+
+**For 5 - Sensory-motor Function**
+
+*1 - ES cluster x null*
+The log-likelihood ratio test shows that adding EScluster as a random-effects term in comparison to a null model *can* significantly improve the model fit (LRT = 235.0232, pval = <.0001).
+
+*2 - Study x null*
+The log-likelihood ratio test shows that adding Study as a random-effects term in comparison to a null model *can* significantly improve the model fit (LRT = 225.1353, pval = <.0001).
+
+*3 - Study cluster x null*
+The log-likelihood ratio test shows that adding StudyCluster as a random-effects term in comparison to a null model *can not* significantly improve the model fit (LRT = 220.7445, pval = <.0001).
+
+*4 - Study + ES cluster x ES cluster*
+The log-likelihood ratio test shows that adding Study/EScluster as a random-effects term in comparison to a model with only EScluster as random-effects term *can* significantly improve the model fit (LRT = 	3.8657, pval = 0.0493).
+
+*5 - Study + ES cluster x Study*
+The log-likelihood ratio test shows that adding Study/EScluster as a random-effects term in comparison to a model with only Study as random-effects term *can* significantly improve the model fit (LRT = 	13.7536, pval = 0.0002).
+
+*6 - Study cluster + Study + ES cluster x Study + ES cluster*
+The log-likelihood ratio test shows that adding StudyCluster/Study/EScluster as a random-effects term in comparison to a model with Study/EScluster as random-effects term *can not* significantly improve the model fit (LRT = 	0, pval = 1).
+
+*Conclusion*
+The model should incorporate Study and ES cluster as random variable and the variable Study Cluster can be ignored.
+
+**For 6 - Predatory performance**
+
+*1 - ES cluster x null*
+The log-likelihood ratio test shows that adding EScluster as a random-effects term in comparison to a null model *can not* significantly improve the model fit (LRT = 3.3170, pval = 0.0686).
+
+*2 - Study x null*
+The log-likelihood ratio test shows that adding Study as a random-effects term in comparison to a null model *can not* significantly improve the model fit (LRT = 3.1262, pval = 0.0770).
+
+*3 - Study cluster x null*
+The log-likelihood ratio test shows that adding StudyCluster as a random-effects term in comparison to a null model *can not* significantly improve the model fit (LRT = 2.1622, pval = 0.1414).
+
+*Conclusion*
+The model is not improved by any random term inclusion. Is there more than one experiment for any of the included studies? Yes, there are 6 studies in total, 5 of them have two independent experiments and one has 3 treatment groups in one experiment.
+Although there is no better model fitting over null model, due to data characteristics, Study and ES cluster should be considered as random-effects variables in the model.
+
+**For 7 - CAT activity**
+
+*1 - ES cluster x null*
+The log-likelihood ratio test shows that adding EScluster as a random-effects term in comparison to a null model *can* significantly improve the model fit (LRT = 125.9790, pval = <.0001).
+
+*2 - Study x null*
+The log-likelihood ratio test shows that adding Study as a random-effects term in comparison to a null model *can* significantly improve the model fit (LRT = 141.0055, pval = <.0001).
+
+*3 - Study cluster x null*
+The log-likelihood ratio test shows that adding StudyCluster as a random-effects term in comparison to a null model *can not* significantly improve the model fit (LRT = 112.4303, pval = <.0001).
+
+*4 - Study + ES cluster x ES cluster*
+The log-likelihood ratio test shows that adding Study/EScluster as a random-effects term in comparison to a model with only EScluster as random-effects term *can* significantly improve the model fit (LRT = 	15.0265, pval = 0.0001).
+
+*5 - Study + ES cluster x Study*
+The log-likelihood ratio test shows that adding Study/EScluster as a random-effects term in comparison to a model with only Study as random-effects term *can not* significantly improve the model fit (LRT = 	0, pval = 1).
+
+*6 - Study cluster + Study + ES cluster x Study + ES cluster*
+The log-likelihood ratio test shows that adding StudyCluster/Study/EScluster as a random-effects term in comparison to a model with Study/EScluster as random-effects term *can not* significantly improve the model fit (LRT = 	0, pval = 1).
+
+*Conclusion*
+The LRT indicates that the model can incorporate ES cluster and Study as random variables and Study Cluster can be ignored. Inclusion of ES cluster on a Study only random-model does not improves the model fit, although, due to data characteristics (4 papers with more than one independent experiment) both terms should be maintained.
+
+**For 8 - GST activity**
+
+*1 - ES cluster x null*
+The log-likelihood ratio test shows that adding EScluster as a random-effects term in comparison to a null model *can* significantly improve the model fit (LRT = 95.8124, pval = <.0001).
+
+*2 - Study x null*
+The log-likelihood ratio test shows that adding Study as a random-effects term in comparison to a null model *can* significantly improve the model fit (LRT = 104.7957, pval = <.0001).
+
+*3 - Study cluster x null*
+The log-likelihood ratio test shows that adding StudyCluster as a random-effects term in comparison to a null model *can not* significantly improve the model fit (LRT = 77.6928, pval = <.0001).
+
+*4 - Study + ES cluster x ES cluster*
+The log-likelihood ratio test shows that adding Study/EScluster as a random-effects term in comparison to a model with only EScluster as random-effects term *can* significantly improve the model fit (LRT = 	12.7997, pval = 0.0003).
+
+*5 - Study + ES cluster x Study*
+The log-likelihood ratio test shows that adding Study/EScluster as a random-effects term in comparison to a model with only Study as random-effects term *can not* significantly improve the model fit (LRT = 3.8164, pval = 0.0508).
+
+*6 - Study cluster + Study + ES cluster x Study + ES cluster*
+The log-likelihood ratio test shows that adding StudyCluster/Study/EScluster as a random-effects term in comparison to a model with Study/EScluster as random-effects term *can not* significantly improve the model fit (LRT = 	0, pval = 1).
+
+*Conclusion*
+The LRT indicates that the model can incorporate ES cluster and Study as random variables and Study Cluster can be ignored. Inclusion of ES cluster on a Study only random-model does not improves the model fit, although, due to data characteristics (2/7 papers with more than one independent experiment) both terms will be maintained.
+
+**For 9 - ROS levels**
+
+*1 - ES cluster x null*
+The log-likelihood ratio test shows that adding EScluster as a random-effects term in comparison to a null model *can* significantly improve the model fit (LRT = 344.6245, pval = <.0001).
+
+*2 - Study x null*
+The log-likelihood ratio test shows that adding Study as a random-effects term in comparison to a null model *can* significantly improve the model fit (LRT = 384.3222, pval = <.0001).
+
+*3 - Study cluster x null*
+The log-likelihood ratio test shows that adding StudyCluster as a random-effects term in comparison to a null model *can* significantly improve the model fit (LRT = 290.0824, pval = <.0001).
+
+*4 - Study + ES cluster x ES cluster*
+The log-likelihood ratio test shows that adding Study/EScluster as a random-effects term in comparison to a model with only EScluster as random-effects term *can* significantly improve the model fit (LRT = 	41.1074, pval = <.0001).
+
+*5 - Study + ES cluster x Study*
+The log-likelihood ratio test shows that adding Study/EScluster as a random-effects term in comparison to a model with only Study as random-effects term *can not* significantly improve the model fit (LRT = 1.4097, pval = 0.2351).
+
+*6 - Study cluster + Study + ES cluster x Study + ES cluster*
+The log-likelihood ratio test shows that adding StudyCluster/Study/EScluster as a random-effects term in comparison to a model with Study/EScluster as random-effects term *can not* significantly improve the model fit (LRT = 	0.0019, pval = 0.9649).
+
+*Conclusion*
+The LRT indicates that the model can incorporate ES cluster and Study as random variables and Study Cluster can be ignored, since inclusion does`t further improves the model fit. Inclusion of ES cluster on a Study only random-model does not improves the model fit, although, due to data characteristics (papers with more than one independent experiment) both terms will be maintained.
+
+**For 10 - GSH content**
+
+*1 - ES cluster x null*
+The log-likelihood ratio test shows that adding EScluster as a random-effects term in comparison to a null model *can* significantly improve the model fit (LRT = 107.3853, pval = <.0001).
+
+*2 - Study x null*
+The log-likelihood ratio test shows that adding Study as a random-effects term in comparison to a null model *can* significantly improve the model fit (LRT = 113.2664, pval = <.0001).
+
+*3 - Study cluster x null*
+The log-likelihood ratio test shows that adding StudyCluster as a random-effects term in comparison to a null model *can* significantly improve the model fit (LRT = 91.4141, pval = <.0001).
+
+*4 - Study + ES cluster x ES cluster*
+The log-likelihood ratio test shows that adding Study/EScluster as a random-effects term in comparison to a model with only EScluster as random-effects term *can* significantly improve the model fit (LRT = 	5.8811, pval = 0.0153).
+
+*5 - Study + ES cluster x Study*
+The log-likelihood ratio test shows that adding Study/EScluster as a random-effects term in comparison to a model with only Study as random-effects term *can not* significantly improve the model fit (LRT = 0, pval = 1).
+
+*6 - Study cluster + Study + ES cluster x Study + ES cluster*
+The log-likelihood ratio test shows that adding StudyCluster/Study/EScluster as a random-effects term in comparison to a model with Study/EScluster as random-effects term *can not* significantly improve the model fit (LRT = 	1.5938, pval = 0.2068).
+
+*Conclusion*
+The LRT indicates that the model can incorporate ES cluster and Study as random variables. Inclusion of ES cluster on a Study only random-model does not improves the model fit. Although, due to data characteristics (1/6 papers with more than one independent experiment) both terms may be maintained.
+
+**For 11 - GPx activity**
+
+*1 - ES cluster x null*
+The log-likelihood ratio test shows that adding EScluster as a random-effects term in comparison to a null model *can* significantly improve the model fit (LRT = 62.7164, pval = <.0001).
+
+*2 - Study x null*
+The log-likelihood ratio test shows that adding Study as a random-effects term in comparison to a null model *can* significantly improve the model fit (LRT = 38.6802, pval = <.0001).
+
+*3 - Study cluster x null*
+The log-likelihood ratio test shows that adding StudyCluster as a random-effects term in comparison to a null model *can* significantly improve the model fit (LRT = 32.3605, pval = <.0001).
+
+*4 - Study + ES cluster x ES cluster*
+The log-likelihood ratio test shows that adding Study/EScluster as a random-effects term in comparison to a model with only EScluster as random-effects term *can* significantly improve the model fit (LRT = 4.2920, pval = 0.0383).
+
+*5 - Study + ES cluster x Study*
+The log-likelihood ratio test shows that adding Study/EScluster as a random-effects term in comparison to a model with only Study as random-effects term *can* significantly improve the model fit (LRT = 28.3283, pval = <.0001).
+
+*6 - Study cluster + Study + ES cluster x Study + ES cluster*
+The log-likelihood ratio test shows that adding StudyCluster/Study/EScluster as a random-effects term in comparison to a model with Study/EScluster as random-effects term *can not* significantly improve the model fit (LRT = 	0, pval = 1).
+
+*Conclusion*
+The LRT indicates that the model can incorporate ES cluster and Study as random variables. Inclusion of ES cluster on a Study only random-model improves the model fit.
+
+**For 12 - SOD activity**
+
+*1 - ES cluster x null*
+The log-likelihood ratio test shows that adding EScluster as a random-effects term in comparison to a null model *can* significantly improve the model fit (LRT = 120.8560, pval = <.0001).
+
+*2 - Study x null*
+The log-likelihood ratio test shows that adding Study as a random-effects term in comparison to a null model *can* significantly improve the model fit (LRT = 129.3829, pval = <.0001).
+
+*3 - Study cluster x null*
+The log-likelihood ratio test shows that adding StudyCluster as a random-effects term in comparison to a null model *can* significantly improve the model fit (LRT = 108.6500, pval = <.0001).
+
+*4 - Study + ES cluster x ES cluster*
+The log-likelihood ratio test shows that adding Study/EScluster as a random-effects term in comparison to a model with only EScluster as random-effects term *can* significantly improve the model fit (LRT = 11.1024, pval = 0.0009).
+
+*5 - Study + ES cluster x Study*
+The log-likelihood ratio test shows that adding Study/EScluster as a random-effects term in comparison to a model with only Study as random-effects term *can not* significantly improve the model fit (LRT = 2.5755, pval = 0.1085).
+
+*6 - Study cluster + Study + ES cluster x Study + ES cluster*
+The log-likelihood ratio test shows that adding StudyCluster/Study/EScluster as a random-effects term in comparison to a model with Study/EScluster as random-effects term *can not* significantly improve the model fit (LRT = 	0, pval = 1).
+
+*Conclusion*
+The LRT indicates that the model can incorporate ES cluster and Study as random variables. Inclusion of ES cluster on a Study only random-model does not improves the model fit. Although, due to data characteristics (papers with more than one independent experiment) both terms may be maintained.
+
+**For 13 - Speed during feeding**
+
+*1 - ES cluster x null*
+The log-likelihood ratio test shows that adding EScluster as a random-effects term in comparison to a null model *can* significantly improve the model fit (LRT = 61.6480, pval = <.0001).
+
+*2 - Study x null*
+The log-likelihood ratio test shows that adding Study as a random-effects term in comparison to a null model *can* significantly improve the model fit (LRT = 61.6480, pval = <.0001).
+
+*3 - Study cluster x null*
+The log-likelihood ratio test shows that adding StudyCluster as a random-effects term in comparison to a null model *can* significantly improve the model fit (LRT = 49.9611, pval = <.0001).
+
+*4 - Study + ES cluster x ES cluster*
+The log-likelihood ratio test shows that adding Study/EScluster as a random-effects term in comparison to a model with only EScluster as random-effects term *can not* significantly improve the model fit (LRT = 0, pval = 1).
+
+*5 - Study + ES cluster x Study*
+The log-likelihood ratio test shows that adding Study/EScluster as a random-effects term in comparison to a model with only Study as random-effects term *can not* significantly improve the model fit (LRT = 0, pval = 1).
+
+*6 - Study cluster + Study + ES cluster x Study + ES cluster*
+The log-likelihood ratio test shows that adding StudyCluster/Study/EScluster as a random-effects term in comparison to a model with Study/EScluster as random-effects term *can not* significantly improve the model fit (LRT = 	1.6952, pval = 0.1929).
+
+*Conclusion*
+The model should incorporate only Study or ES cluster as random variable. Is there more than one experiment for any of the included studies? No, each Study only has one experiment.
+Due to the importance of the Study level on Systematic reviews, this is the variable that shall be used.
+
+## Random Effects formula for each variable
+```{r, echo=TRUE}
+random_factors = list(formula(~1 | StudyCluster/Study/EScluster), # n_outcome = 1,  -
+                      formula(~1 | Study/EScluster),              # n_outcome = 2,  Study
+                      formula(~1 | Study),                        # n_outcome = 3,  -
+                      formula(~1 | Study/EScluster),              # n_outcome = 4,  Study
+                      formula(~1 | Study/EScluster),              # n_outcome = 5,  -
+                      formula(~1 | Study/EScluster),              # n_outcome = 6,  null
+                      formula(~1 | Study/EScluster),              # n_outcome = 7,  Study
+                      formula(~1 | Study/EScluster),              # n_outcome = 8,  Study
+                      formula(~1 | Study/EScluster),              # n_outcome = 9,  Study
+                      formula(~1 | Study/EScluster),              # n_outcome = 10, Study
+                      formula(~1 | Study/EScluster),              # n_outcome = 11, -
+                      formula(~1 | Study/EScluster),              # n_outcome = 12, Study
+                      formula(~1 | Study))                        # n_outcome = 13, -
+# - = change of model not recommended 
+# Study = can be a Study only analysis
+# null = random effects could be omitted according to Likelihood ratio tests
+```
+# Extended possible random factors
+Species: Due to the genetic relationship between organisms 
+Particle Material: Due to chemical composition
+```{r}
+columns = c("LRT (Species)","pval (Species)","LRT (PM)","pval (PM)") 
+rst_tbl = data.frame(matrix(nrow = 0, ncol = length(columns))) 
+colnames(rst_tbl) = columns
+
+for(n_outcome in sequence(nlevels(outcomeslist)))
+  {
+  skip_to_next <- FALSE
+  
+  df <- df_original[ which(df_original$Outcome==outcomeslist[n_outcome] ),]
+  
+  resRF.m1 <- rma.mv(yi, vi, 
+              random = random_factors[[n_outcome]], 
+              data=df, 
+              method="ML")
+  
+  resRF.m2 <- rma.mv(yi, vi, 
+              random = list(random_factors[[n_outcome]], ~ 1 | Species), 
+              data=df, 
+              method="ML")
+  
+  df1 <- select(df,c("StudyCluster","Study","Year",
+                     "EScluster","Species","ParticleMaterial","yi","vi"))
+  df1<- df1[complete.cases(df1),]
+  
+  resRF.m3 <- rma.mv(yi, vi, 
+              random = random_factors[[n_outcome]], 
+              data=df1, 
+              method="ML")
+  
+  resRF.m4 <- rma.mv(yi, vi, 
+              random = list(random_factors[[n_outcome]], ~ 1 | ParticleMaterial), 
+              data= df1, 
+              method="ML")
+  
+  # for Species versus none extra random factors
+  resRF2_1 = anova.rma(resRF.m2,resRF.m1) 
+  
+  # for ParticleMaterial versus none extra random factors with smaller data set
+  if (n_distinct(df1$ParticleMaterial)>=2)
+   {resRF4_3 = anova.rma(resRF.m4,resRF.m3)}
+  else
+   {resRF4_3$LRT  = NA
+    resRF4_3$pval = NA}
+  
+  rst_tbl[n_outcome,] = round(c(resRF2_1$LRT, resRF2_1$pval, resRF4_3$LRT, resRF4_3$pval),3)
+  #rm(list = ls(pat = "res"))
+   }
+
+rownames(rst_tbl) = outcomeslist
+print(rst_tbl)
+
+rm(list = ls(pat = "resRF"))
+rm("df1")
+```
+### Conclusion
+Even if particle material or species could contribute with the random effects term, on this data set their contribution is not significant to justify the increase in the model complexity.
+
+## Random Effects model and forest plots
+SYRCLE PROTOCOL: A meta-analysis will be performed with a minimum of 5 studies for the same outcome.
+
+Criteria achieved to total studies level for all variables
+```{r}
+# Create variable to store random effects with robust variance estimation models
+res.rob_random_effects = vector("list",nlevels(outcomeslist))
+heterogeneity = vector("list",nlevels(outcomeslist))
+
+columns = c("N estimates","N clusters","ES","SE","ci.lb","ci.ub","pi.lb","pi.ub","Q²","Q² p-value","I² total") 
+predicted_intervals = data.frame(matrix(nrow = 0, ncol = length(columns))) 
+colnames(predicted_intervals) = columns
+
+# Select data
+for(n_outcome in sequence(nlevels(outcomeslist)))
+{
+  df <- df_original[ which(df_original$Outcome==outcomeslist[n_outcome] ),]
+  df <-df[order(df$DevelopmentalStage,-df$yi),]
+  
+  # fit multivariate/multilevel model with appropriate fixed/random effects
+  res <- rma.mv(yi, vi,
+              random = random_factors[[n_outcome]],
+              data=df, 
+              slab = Study,
+              method="REML",  
+              test="t", dfs="contain", level=95)
+  
+  # apply cluster-robust inference methods (robust variance estimation) using the improved methods from the clubSandwich package
+  res.rob_random_effects[[n_outcome]] <- robust(res, cluster = res$mf.r[[1]][,1], clubSandwich = TRUE)
+
+ # Heterogeneity
+ heterogeneity[[n_outcome]]= round(i2_ml(res.rob_random_effects[[n_outcome]]),2)
+  
+  # compute predicted outcomes (with corresponding CIs) as needed
+  pi <- predict(res.rob_random_effects[[n_outcome]])
+  predicted_intervals[n_outcome,] <- round(c(res.rob_random_effects[[n_outcome]]$k,
+                                             res.rob_random_effects[[n_outcome]]$n,
+                                             pi$pred, pi$se, pi$ci.lb, pi$ci.ub, pi$pi.lb, pi$pi.ub,
+                                             res.rob_random_effects[[n_outcome]]$QE,
+                                             res.rob_random_effects[[n_outcome]]$QEp, 
+                                             heterogeneity[[n_outcome]][[1]]),2)
+  # test sets of coefficients / linear combinations as needed
+  # anova(res_rob)
+}
+
+Heterogeneity1 = as.data.frame(do.call(rbind, heterogeneity[1]))
+Heterogeneity1 = cbind(outcomeslist[1],Heterogeneity1)
+print(Heterogeneity1)
+
+Heterogeneity2 = as.data.frame(do.call(rbind, heterogeneity[c(3,13)]))
+Heterogeneity2 = cbind(outcomeslist[c(3,13)],Heterogeneity2)
+print(Heterogeneity2)
+
+Heterogeneity3 = as.data.frame(do.call(rbind, heterogeneity[c(2,4:12)]))
+Heterogeneity3 = cbind(outcomeslist[c(2,4:12)],Heterogeneity3)
+print(Heterogeneity3)
+
+predicted_intervals = cbind(outcomeslist,predicted_intervals)
+print(predicted_intervals)
+
+for(n_outcome in sequence(nlevels(outcomeslist)))
+{forest_plot(res.rob_random_effects[[n_outcome]],outcomeslist[[n_outcome]],"REmodel")}
+```
+##  Multilevel Model (multilevel model)+ Moderators (multilevel mixed-effects model or multilevel meta-regression model)
+
+# Multilevel Model
+Level 1 - Sampling
+Level 2 - Effect size cluster: within studies variability 
+Level 3 - Study cluster: between studies variability
+orchard plot displays the prediction interval of the overall effect (bold whiskers), the number of effect sizes (k) and the number of studies (the number in the bracket).
+
+# Possible moderators or fixed effects to be evaluated as souces of heterogeneity
+*neurobiological*
+ - developmental stage    (DevelopmentalStage) **
+ - species                (Species)
+ - sex                    (Sex)
+*methodological*
+ - dose                   (Concentration_mg_L) **
+ - rota de administracão  (AdministrationRoute)
+ - particle
+    - material            (ParticleMaterial)
+    - shape               (ParticleShape)
+    - size                (ParticleSizeMean) **
+ - exposure duration      (ExposureDurationDays) **
+*sociological*
+ - publication bias       (se[i] as moderator)
+ - publication year       (for publication bias?)
+
+** choosed to evaluate
+
+"A random meta-regression requires each of its moderators to have at least five studies, multilevel needs to be evaluated"
+
+SYRCLE PROTOCOL: Metarregression will be used for outcomes with at least 10 experiments.
+
+DROP: GSH content, Speed during feeding, Predatory Performance
+### Number of experiments by outcome
+```{r}
+
+```
+
+### Correlation between moderators
+As multilevel models are sensitive to correlated variables, the chosen variables must be evaluated. --> de onde saiu essa informação??????????????????????????????????????????????????????????????
+Outra abordagem --> https://link.springer.com/article/10.3758/s13428-020-01360-0
+```{r}
+moderators <- moderatorslist[c(3,9,6,8)]
+model_mods = as.formula( ~ ExposureDurationDays + DevelopmentalStage + DevelopmentalStage*ExposureDurationDays
+              + ParticleSizeMean + Concentration_mg_L -1)
+```
+
+
+```{r}
+# Create variable to store random effects with robust variance estimation models
+res.meta = vector("list",nlevels(outcomeslist))
+heterogeneity = vector("list",nlevels(outcomeslist))
+pi = vector("list",nlevels(outcomeslist))
+pi = vector("list",nlevels(outcomeslist))
+
+# Select data
+for(n_outcome in sequence(nlevels(outcomeslist)))
+{
+  print(paste("** Meta-regresion",outcomeslist[n_outcome],"**"))
+  
+  df <- df_original[ which(df_original$Outcome==outcomeslist[n_outcome] ),]
+  df <-df[order(df$DevelopmentalStage,-df$yi),]
+  df1 <- select(df, c("StudyCluster", "Study", "EScluster", moderatorslist[c(3,9,6,8)],"yi", "vi"))
+  df<- df[complete.cases(df1),]
+  
+  # fit multivariate/multilevel model with appropriate fixed/random effects
+  res.meta[[n_outcome]] <- rma.mv(yi, vi,
+                            random = random_factors[[n_outcome]],
+                            mods = model_mods,
+                            data=df, 
+                            slab = Study,
+                            method="REML",  
+                            test="t", dfs="contain", level=95)
+  # apply cluster-robust inference methods (robust variance estimation) using the improved methods from the clubSandwich package
+  res.meta[[n_outcome]] <- robust(res.meta[[n_outcome]], cluster = res.meta[[n_outcome]]$mf.r[[1]][,1], clubSandwich = TRUE)
+
+  # Heterogeneity
+  heterogeneity[[n_outcome]]= round(i2_ml(res.meta[[n_outcome]]),2)
+  
+  # compute predicted outcomes (with corresponding CIs) as needed
+  pi[[n_outcome]] <- predict(res.meta[[n_outcome]])
+
+  #Goodness-of-fit index
+  r2[[n_outcome]] <- r2_ml(res.meta)
+
+  # test sets of coefficients / linear combinations as needed
+  # anova(res_rob)
+  
+  forestmeta_plot(res.meta[[n_outcome]],outcomeslist[[n_outcome]],"FullMetaModel",model_mods)
+}
+#paste(format(r2[1]*100,digits=4), "% of the variation among effect sizes is explained by",formula(res_meta))
+
+```
+
