@@ -34,9 +34,9 @@ editor_options:
 knitr::opts_chunk$set(echo = FALSE)
 knitr::opts_chunk$set(fig.pos = "H", out.extra = "")
 
-devtools::install_github("daniel1noble/orchaRd", ref = "main", force = TRUE)
-pacman::p_load(devtools, tidyverse, metafor, patchwork, R.rsp, orchaRd, emmeans,
-    ape, phytools, flextable)
+#devtools::install_github("daniel1noble/orchaRd", ref = "main", force = TRUE)
+#pacman::p_load(devtools, tidyverse, metafor, patchwork, R.rsp, orchaRd, emmeans,
+#    ape, phytools, flextable)
 
 library(clubSandwich)
 library(GGally)
