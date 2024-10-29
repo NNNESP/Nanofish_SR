@@ -1,7 +1,7 @@
 ---
 title: "Nanofish_mv"
 author: "Querusche"
-date: "2024"
+date: "2023-04-16"
 output:
   pdf_document: default
   html_document: default
@@ -12,10 +12,6 @@ editor_options:
 ---
 
 ## Tutorials from:
--   Y. Yang, M. Macleod, J. Pan, M. Lagisz, S. Nakagawa, 2023. Advanced methods
-    and implementations for the meta-analyses of animal models: current 
-    practices and future recommendations. Neurosci. Biobehav. Rev., 146
-    <https://doi.org/10.1016/j.neubiorev.2022.105016>
 
 -   Yefeng Yang, Malcom Macleaod, Jinming Pan, Malgorzata Lagisz,
     Shinichi Nakagawa, 2022. The current practices of meta-analyses
@@ -26,17 +22,14 @@ editor_options:
 
 -   Wolfgang Viechtbauer <https://www.metafor-project.org>
     <https://wviechtb.github.io/metafor/reference/misc-recs.html>
-    <https://wviechtb.github.io/meta_analysis_books/>
-    
--   Shinichi Nakagawa, Malgorzata Lagisz, Rose E. O’Dea, Patrice Pottier, Joanna Rutkowska, Alistair M. Senior, Yefeng Yang, Daniel W.A. Noble. 2023. orchaRd 2.0: An R package for visualizing meta-analyses with orchard plots. Methods in Ecology and Evolution, https://doi.org/10.1111/2041-210X.14152 (preprint = EcoEvoRxiv, https://doi.org/10.32942/X2QC7). <https://daniel1noble.github.io/orchaRd/>
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE)
-knitr::opts_chunk$set(fig.pos = "H", out.extra = "")
+knitr::opts_chunk$set(echo = TRUE)
+rmarkdown::html_document(df_print = rmarkdown::paged_table)
 
-devtools::install_github("daniel1noble/orchaRd", ref = "main", force = TRUE)
-pacman::p_load(devtools, tidyverse, metafor, patchwork, R.rsp, orchaRd, emmeans,
-    ape, phytools, flextable)
+#devtools::install_github("daniel1noble/orchaRd", ref = "main", force = TRUE)
+#pacman::p_load(devtools, tidyverse, metafor, patchwork, R.rsp, orchaRd, emmeans,
+#    ape, phytools, flextable)
 
 library(clubSandwich)
 library(GGally)
@@ -44,11 +37,180 @@ library(ggplot2)
 library(grid)
 library(gridExtra)
 library(pacman)
-library(metafor)
-library(dplyr)
-library(tidyverse)
+#library(metafor)
+#library(dplyr)
+#library(tidyverse)
 library(gt) # https://posit.co/blog/great-looking-tables-gt-0-2/
+```
 
+# Functions definition
+```{r, echo=FALSE}
+set_plot_dimensions <- function(width_choice, height_choice) {
+        options(repr.plot.width=width_choice, repr.plot.height=height_choice)
+}
+```
+
+### Forest for REmodel and null model
+```{r, echo=FALSE}
+forest_plot <- function(model,outcome,modelID){
+devstage_list = as.character(unique(model$data$DevelopmentalStage))
+devstage_n =    n_distinct(model$data$DevelopmentalStage)
+devstage_rows = vector("list",devstage_n)
+devstage_shade_rows =c()
+k=1
+for (x in devstage_list){
+  if (is.na(x))
+    {devstage_rows[[k]] = which(rev(is.na(model$data$DevelopmentalStage)))+devstage_n-k
+  } else {
+      devstage_rows[[k]]= which(rev(model$data$DevelopmentalStage)==x)+devstage_n-k}
+  if (k==1|k==3|k==5)
+  {devstage_shade_rows = c(devstage_shade_rows,devstage_rows[[k]],max(devstage_rows[[k]])+1)}
+  
+  k=k+1
+}
+addlines = switch(devstage_n, 4, 3, 2, 1)
+
+pdf(file=paste('Figures/Forest plot_', outcome,"_",modelID,'.pdf',sep=""),paper="A4")
+### forest plot with extra annotations
+forestplot<-forest.rma(model, 
+           annotate=TRUE, 
+           addpred=TRUE,
+           showweights=FALSE,
+           header=c("Author (s) and Year"),
+           #xlim = c(min(df$yi-df$vi),max(df$yi+df$vi))*c(10,2),
+           #alim, olim, ylim, at, 
+           ylim=c(-1.5,max(unlist(devstage_rows))+devstage_n+addlines),
+           rows=unlist(devstage_rows),
+           steps=5,
+           level=model$level,
+           refline=0,
+           digits=2, 
+           width=(1),
+           xlab = paste("Standartized Mean Difference for",
+                        as.character(outcome)), 
+           slab = Study,
+           mlab = "RE null model",
+           ilab = cbind(#as.character(DevelopmentalStage), 
+                        format(10^ExposureDurationDays,digits=1), 
+                        format(round(10^ParticleSizeMean,2),trim=TRUE),
+                        format(round(Concentration_mg_L,1), trim=TRUE)),
+           shade = devstage_shade_rows,
+           #colout = df$StudyCluster
+           )
+
+text(x=forestplot$ilab.xpos, 
+     y=forestplot$ylim[2]-1, 
+     c(#"Develop.\n stage", 
+       "Exp.\n days", 
+       "Particle \n size (µm)",
+       "Conc. \n log₁₀[mg/L]"),
+     cex=forestplot$cex*0.75,
+     font = 2)
+text(x=forestplot$textpos[1],
+     y=setdiff(1:1:(max(unlist(devstage_rows))+1),unlist(devstage_rows)),
+     rev(devstage_list),
+     font=4,
+     cex=forestplot$cex*0.8,
+     pos=4)
+text(x=forestplot$textpos[1], 
+     y=max(unlist(devstage_rows))+2,#forestplot$ylim[1]*2,
+    paste("Clusters / Studies / Experiments:",
+          paste(n_distinct(model$data$StudyCluster),n_distinct(model$data$Study),n_distinct(model$data$EScluster),sep = " / ")),
+    font = 2,
+    cex=forestplot$cex*0.75,
+    pos=4)
+dev.off()}
+```
+
+
+```{r, echo=FALSE}
+```
+
+### Orchard plot for REmodel
+```{r, echo=FALSE}
+
+orchardRE_model <- function(model,n_outcome,I_yposition,heterogeneity){
+  orchard_plot(model[[n_outcome]], mod = 1,"DevelopmentalStage", xlab = "Standardised mean difference", 
+                transfm = "none")+
+    annotate(geom="text", x= 0.80, y= I_yposition[n_outcome], 
+           label= paste0("italic(I)^{2} == ", round(heterogeneity[[n_outcome]][[1]],4)), 
+           color="black", parse = TRUE, size = 5) +
+    scale_fill_manual(values="grey") +
+    scale_colour_manual(values="grey")}
+```
+
+### Forest for metaregression
+```{r, echo=FALSE}
+forestmeta_plot <- function(model,outcome,modelID,moderators){
+devstage_list = as.character(unique(model$data$DevelopmentalStage))
+devstage_n =    n_distinct(model$data$DevelopmentalStage)
+devstage_rows = vector("list",devstage_n)
+devstage_shade_rows =c()
+k=1
+for (x in devstage_list){
+  if (is.na(x))
+    {devstage_rows[[k]] = which(rev(is.na(model$data$DevelopmentalStage)))+devstage_n-k
+  } else {
+      devstage_rows[[k]]= which(rev(model$data$DevelopmentalStage)==x)+devstage_n-k}
+  if (k==1|k==3|k==5)
+  {devstage_shade_rows = c(devstage_shade_rows,devstage_rows[[k]],max(devstage_rows[[k]])+1)}
+  
+  k=k+1
+}
+addlines = switch(devstage_n, 4, 3, 2, 1)
+
+pdf(file=paste('Figures/Forest plot_', outcome,"_",modelID,'.pdf',sep=""),paper="A4")
+### forest plot with extra annotations
+forestplot<-forest.rma(model, 
+           annotate=TRUE, 
+           addfit=TRUE,
+           addpred=TRUE,
+           showweights=FALSE,
+           mods = moderators,
+           header=c("Author (s) and Year"),
+           #xlim = c(min(df$yi-df$vi),max(df$yi+df$vi))*c(10,2),
+           #alim, olim, ylim, at, 
+           ylim=c(-1.5,max(unlist(devstage_rows))+devstage_n+addlines),
+           rows=unlist(devstage_rows),
+           steps=5,
+           level=model$level,
+           refline=0,
+           digits=2, 
+           width=(1),
+           xlab = paste("Standartized Mean Difference for",
+                        as.character(outcome)), 
+           slab = Study,
+           mlab = "RE null model",
+           ilab = cbind(#as.character(DevelopmentalStage), 
+                        format(10^ExposureDurationDays,digits=1), 
+                        format(round(10^ParticleSizeMean,2),trim=TRUE),
+                        format(round(Concentration_mg_L,1), trim=TRUE)),
+           shade = devstage_shade_rows,
+           #colout = df$StudyCluster
+           )
+
+text(x=forestplot$ilab.xpos, 
+     y=forestplot$ylim[2]-1, 
+     c(#"Develop.\n stage", 
+       "Exp.\n days", 
+       "Particle \n size (µm)",
+       "Conc. \n log₁₀[mg/L]"),
+     cex=forestplot$cex*0.75,
+     font = 2)
+text(x=forestplot$textpos[1],
+     y=setdiff(1:1:(max(unlist(devstage_rows))+1),unlist(devstage_rows)),
+     rev(devstage_list),
+     font=4,
+     cex=forestplot$cex*0.8,
+     pos=4)
+text(x=forestplot$textpos[1], 
+     y=max(unlist(devstage_rows))+2,#forestplot$ylim[1]*2,
+    paste("Clusters / Studies / Experiments:",
+          paste(n_distinct(model$data$StudyCluster),n_distinct(model$data$Study),n_distinct(model$data$EScluster),sep = " / ")),
+    font = 2,
+    cex=forestplot$cex*0.75,
+    pos=4)
+dev.off()}
 ```
 
 ## Preparing data
@@ -59,17 +221,55 @@ transformations of numeral variables
 NA = not applicable Unclear = unavailable information on the paper
 
 ```{r Load data, echo=FALSE}
+file <- "mvMetaAnalysis.csv"
+df_original <- read.csv(file,  header = TRUE, stringsAsFactors = TRUE, na.strings = c("NA"))
 
-source("functions_Nanofish.R",encoding = "UTF-8")
-m = vector("list",2)
-names(m) <- c("null","forest")
+# check classes
+# str(df_original)
 
-df_original<-load_prep_df("mvMetaAnalysis.csv")
+df_original$Outcome = factor(df_original$Outcome,
+            levels = c("Neurochemical outcomes: AChE activity", 
+                 "Neurochemical outcomes: CAT activity",
+                 "Neurochemical outcomes: GPx activity",
+                 "Neurochemical outcomes: GSH content",
+                 "Neurochemical outcomes: GST activity",
+                 "Neurochemical outcomes: Lipid peroxidation",
+                 "Neurochemical outcomes: ROS levels",
+                 "Neurochemical outcomes: SOD activity",
+                 "Motor function: Distance",
+                 "Sensory-motor function: Distance",
+                 "Feeding behaviour: Predatory performance",
+                 "Feeding behaviour: Feeding time",
+                 "Feeding behaviour: Speed during feeding"
+                 ))
+
+# choose classes
+df_original$StudyID <- factor(df_original$StudyID)
+df_original$StudyCluster <- factor(df_original$StudyCluster)
+df_original$EScluster <- factor(df_original$EScluster)
+df_original$DevelopmentalStage<-factor(sub(".* ", "", 
+                                           df_original$DevelopmentalStage), # remove numbers
+                                       levels = c("Embrio","Larva","Juvenile","Adult","Unclear"))
+
+# numeric variables transformation (if needed)
+df_original$ExposureDurationDays<-log10(df_original$ExposureDurationDays+1) 
+df_original$Concentration_mg_L<-log10(df_original$Concentration_mg_L+1) 
+df_original$ParticleSizeMean<-log10(df_original$ParticleSizeMean+1)
 
 datainfo <- summary(df_original)
 # write.table(datainfo, "mvMetaAnalyse/descriptives.txt", sep="\t")
 
 variables <- variable.names(df_original)
+
+df_original <- select(df_original, c("StudyCluster", "Study", "Year","EScluster", 
+                          "Species","Sex","DevelopmentalStage",
+                          "ParticleMaterial", "ParticleShape", "ParticleSizeMean", "ParticleSizeCat",
+                          "AdministrationRoute", "Concentration_mg_L",
+                          "ExposureDurationCat", "ExposureDurationDays",
+                          "Outcome",
+                          "n_ctrl", "mean_ctrl", "STD_ctrl",
+                          "n_treat", "mean_treat", "STD_treat"))
+
 outcomeslist = sort(unique(df_original$Outcome))
 moderatorslist = c(   "Species",
                       "Sex",
@@ -108,7 +308,7 @@ df_original <- escalc(measure = "SMD",
 
 ## Descriptives plots
 
-```{r echo=FALSE}
+```{r, echo=FALSE}
 #ggpairs(df_original, mapping = aes(color = Shape, alpha = 0.3), columns = moderatorslist,title = "")
 pdf(file='Figures/Boxplot_ESbyOutcome.pdf') # Open SVG device with specific file name
 df_original %>%
@@ -119,8 +319,9 @@ df_original %>%
     ylab("") +
     theme_bw(base_size = 18) +
     theme(legend.position="none")
-set_plot_dimensions(7, 7)
- dev.off()
+set_plot_dimensions(7, 4)
+dev.off() 
+
 ```
 
 ## Null model and data inspection through forest plot
@@ -130,24 +331,23 @@ necessary, first one null model was elaborated for each variable folowed
 by their respective forest plot.
 <https://wviechtb.github.io/metafor/reference/forest.rma.html>
 
-```{r, echo=FALSE, warning=FALSE}
+```{r, echo=FALSE}
+res.null = vector("list",nlevels(outcomeslist))
 
 n_outcome = 1
 for(n_outcome in sequence(nlevels(outcomeslist)))
 {
-outcome<-as.character(outcomeslist[n_outcome])
-df <- df_original[ which(df_original$Outcome == outcome ),]
-df <- df[order(df$DevelopmentalStage,-df$yi),]
+df <- df_original[ which(df_original$Outcome==outcomeslist[n_outcome] ),]
+df <-df[order(df$DevelopmentalStage,-df$yi),]
 
 ### fit random-effects null model
-m$null[[outcome]] <- rma.mv(yi, vi, 
+res.null[[n_outcome]] <- rma.mv(yi, vi, 
                                 data=df, 
                                 method="ML")
 
-m$forest[[outcome]]<-forest_plot(m$null[[outcome]],outcome,"NULLmodel")
+forest_plot(res.null[[n_outcome]],outcomeslist[[n_outcome]],"NULLmodel")
 }
 ```
-
 
 # Likelihood ratio tests and Profile Likelihood Plots of sigma
 
@@ -159,6 +359,7 @@ restricted maximum likelihood (REML)
 
 ```{r, echo=FALSE}
 # create variable to store random effects model
+res.random_effects = vector("list",nlevels(outcomeslist))
 resRF.ExpID =        vector("list",nlevels(outcomeslist))
 resRF.StudyID =      vector("list",nlevels(outcomeslist))
 resRF.StudyCluster = vector("list",nlevels(outcomeslist))
@@ -166,28 +367,28 @@ resRF.StudyIDExpID = vector("list",nlevels(outcomeslist))
 resRF.StudyClusterStudyIDExpID = vector("list",nlevels(outcomeslist))
 
 # run model, inspect results, select model random effects structure for each variable, then plot the profile for each random effect included.
-for(outcome in outcomeslist)
+for(n_outcome in sequence(nlevels(outcomeslist)))
   {
-df <- df_original[ which(df_original$Outcome==outcome ),]
+df <- df_original[ which(df_original$Outcome==outcomeslist[n_outcome] ),]
 df <-df[order(df$DevelopmentalStage,-df$yi),]
 
-resRF.ExpID[[outcome]] <- rma.mv(yi, vi, 
+resRF.ExpID[[n_outcome]] <- rma.mv(yi, vi, 
             random = list(~ 1 | EScluster), 
             data=df, 
             method="ML")
-resRF.StudyID[[outcome]] <- rma.mv(yi, vi, 
+resRF.StudyID[[n_outcome]] <- rma.mv(yi, vi, 
             random = ~ 1 | Study, 
             data=df, 
             method="ML")
-resRF.StudyCluster[[outcome]] <- rma.mv(yi, vi, 
+resRF.StudyCluster[[n_outcome]] <- rma.mv(yi, vi, 
             random = ~ 1 | StudyCluster, 
             data=df, 
             method="ML")
-resRF.StudyIDExpID[[outcome]] <- rma.mv(yi, vi, 
+resRF.StudyIDExpID[[n_outcome]] <- rma.mv(yi, vi, 
             random = ~ 1 | Study/EScluster, 
             data=df, 
             method="ML")
-resRF.StudyClusterStudyIDExpID[[outcome]] <- rma.mv(yi, vi, 
+resRF.StudyClusterStudyIDExpID[[n_outcome]] <- rma.mv(yi, vi, 
             random = ~ 1 | StudyCluster/Study/EScluster, 
             data=df, 
             method="ML")
@@ -197,21 +398,20 @@ rm("df")
 # Inspect Results
 ## create table of results
 columns = c("LRT 1","pval 1","LRT 2","pval 2","LRT 3","pval 3","LRT 4","pval 4","LRT 5","pval 5","LRT 6","pval 6") 
-rst_tbl_RF = data.frame(matrix(nrow = length(outcomeslist), ncol = length(columns))) 
+rst_tbl_RF = data.frame(matrix(nrow = 0, ncol = length(columns))) 
 colnames(rst_tbl_RF) = columns
-rownames(rst_tbl_RF) = outcomeslist
 
 ## run analysis
-for(outcome in outcomeslist)
+for(n_outcome in sequence(nlevels(outcomeslist)))
   {
-anova1.ExpID_null           <- anova.rma(resRF.ExpID[[outcome]], m$null[[outcome]])
-anova2.StudyID_null         <- anova.rma(resRF.StudyID[[outcome]],m$null[[outcome]])
-anova3.StudyCluster_null    <- anova.rma(resRF.StudyCluster[[outcome]],m$null[[outcome]])
-anova4.StudyIDExpID_ExpID   <- anova.rma(resRF.StudyIDExpID[[outcome]], resRF.ExpID[[outcome]])
-anova5.StudyIDExpID_StudyID <- anova.rma(resRF.StudyIDExpID[[outcome]], resRF.StudyID[[outcome]])
-anova6.Full_StudyIDExpID    <- anova.rma(resRF.StudyClusterStudyIDExpID[[outcome]],resRF.StudyIDExpID[[outcome]])
+anova1.ExpID_null           <- anova.rma(resRF.ExpID[[n_outcome]], res.null[[n_outcome]])
+anova2.StudyID_null         <- anova.rma(resRF.StudyID[[n_outcome]], res.null[[n_outcome]])
+anova3.StudyCluster_null    <- anova.rma(resRF.StudyCluster[[n_outcome]], res.null[[n_outcome]])
+anova4.StudyIDExpID_ExpID   <- anova.rma(resRF.StudyIDExpID[[n_outcome]], resRF.ExpID[[n_outcome]])
+anova5.StudyIDExpID_StudyID <- anova.rma(resRF.StudyIDExpID[[n_outcome]], resRF.StudyID[[n_outcome]])
+anova6.Full_StudyIDExpID    <- anova.rma(resRF.StudyClusterStudyIDExpID[[n_outcome]],resRF.StudyIDExpID[[n_outcome]])
 
-rst_tbl_RF[outcome,] = round(c(anova1.ExpID_null$LRT,          anova1.ExpID_null$pval, 
+rst_tbl_RF[n_outcome,] = round(c(anova1.ExpID_null$LRT,          anova1.ExpID_null$pval, 
                                 anova2.StudyID_null$LRT,         anova2.StudyID_null$pval,
                                 anova3.StudyCluster_null$LRT,    anova3.StudyCluster_null$pval,
                                 anova4.StudyIDExpID_ExpID$LRT,   anova4.StudyIDExpID_ExpID$pval,
@@ -235,22 +435,22 @@ rm(list = ls(pat = "anova"))
 
 ```{r, echo=TRUE}
 ## keep chosen Random Effects model
-for(outcome in outcomeslist)
+for(n_outcome in sequence(nlevels(outcomeslist)))
 {
-  switch(outcome, 
-  {m$random_effects[[outcome]] <- resRF.StudyIDExpID[[outcome]]  },     # n_outcome = 1 (Study and EScluster) # Neurochemical outcomes: AChE activity
-  {m$random_effects[[outcome]] <- resRF.StudyIDExpID[[outcome]]  },     # n_outcome = 2 (Study only possible) # Neurochemical outcomes: CAT activity
-  {m$random_effects[[outcome]] <- resRF.StudyIDExpID[[outcome]]  },     # n_outcome = 3 (Study and EScluster) # Neurochemical outcomes: GPx activity
-  {m$random_effects[[outcome]] <- resRF.StudyIDExpID[[outcome]]  },     # n_outcome = 4 (Study only possible) # Neurochemical outcomes: GSH content
-  {m$random_effects[[outcome]] <- resRF.StudyIDExpID[[outcome]]  },     # n_outcome = 5 (Study only possible) # Neurochemical outcomes: GST activity
-  {m$random_effects[[outcome]] <- resRF.StudyIDExpID[[outcome]]  },     # n_outcome = 6 (Study only possible) # Neurochemical outcomes: Lipid peroxidation
-  {m$random_effects[[outcome]] <- resRF.StudyIDExpID[[outcome]]  },     # n_outcome = 7 (Study only possible) # Neurochemical outcomes: ROS levels
-  {m$random_effects[[outcome]] <- resRF.StudyIDExpID[[outcome]]  },     # n_outcome = 8 (Study only possible) # Neurochemical outcomes: SOD activity
-  {m$random_effects[[outcome]] <- resRF.StudyIDExpID[[outcome]]  },     # n_outcome = 9 (Study only possible) # Motor function: Distance
-  {m$random_effects[[outcome]] <- resRF.StudyIDExpID[[outcome]]  },     # n_outcome = 10 (Study and EScluster) # Sensory-motor function: Distance
-  {m$random_effects[[outcome]] <- resRF.StudyIDExpID[[outcome]]  },     # n_outcome = 11 (null model possible) # Feeding behaviour: Predatory performance
-  {m$random_effects[[outcome]] <- resRF.StudyID[[outcome]]  },          # n_outcome = 12 (Is a Study only analysis) # Feeding behaviour: Feeding time
-  {m$random_effects[[outcome]] <- resRF.StudyID[[outcome]]  })          # n_outcome = 13 (Is a Study only analysis) # Feeding behaviour: Speed during feeding
+  switch(n_outcome, 
+  {res.random_effects[[n_outcome]] <- resRF.StudyIDExpID[[n_outcome]]  },     # n_outcome = 1 (Study and EScluster) # Neurochemical outcomes: AChE activity
+  {res.random_effects[[n_outcome]] <- resRF.StudyIDExpID[[n_outcome]]  },     # n_outcome = 2 (Study only possible) # Neurochemical outcomes: CAT activity
+  {res.random_effects[[n_outcome]] <- resRF.StudyIDExpID[[n_outcome]]  },     # n_outcome = 3 (Study and EScluster) # Neurochemical outcomes: GPx activity
+  {res.random_effects[[n_outcome]] <- resRF.StudyIDExpID[[n_outcome]]  },     # n_outcome = 4 (Study only possible) # Neurochemical outcomes: GSH content
+  {res.random_effects[[n_outcome]] <- resRF.StudyIDExpID[[n_outcome]]  },     # n_outcome = 5 (Study only possible) # Neurochemical outcomes: GST activity
+  {res.random_effects[[n_outcome]] <- resRF.StudyIDExpID[[n_outcome]]  },     # n_outcome = 6 (Study only possible) # Neurochemical outcomes: Lipid peroxidation
+  {res.random_effects[[n_outcome]] <- resRF.StudyIDExpID[[n_outcome]]  },     # n_outcome = 7 (Study only possible) # Neurochemical outcomes: ROS levels
+  {res.random_effects[[n_outcome]] <- resRF.StudyIDExpID[[n_outcome]]  },     # n_outcome = 8 (Study only possible) # Neurochemical outcomes: SOD activity
+  {res.random_effects[[n_outcome]] <- resRF.StudyIDExpID[[n_outcome]]  },     # n_outcome = 9 (Study only possible) # Motor function: Distance
+  {res.random_effects[[n_outcome]] <- resRF.StudyIDExpID[[n_outcome]]  },     # n_outcome = 10 (Study and EScluster) # Sensory-motor function: Distance
+  {res.random_effects[[n_outcome]] <- resRF.StudyIDExpID[[n_outcome]]  },     # n_outcome = 11 (null model possible) # Feeding behaviour: Predatory performance
+  {res.random_effects[[n_outcome]] <- resRF.StudyID[[n_outcome]]  },          # n_outcome = 12 (Is a Study only analysis) # Feeding behaviour: Feeding time
+  {res.random_effects[[n_outcome]] <- resRF.StudyID[[n_outcome]]  })          # n_outcome = 13 (Is a Study only analysis) # Feeding behaviour: Speed during feeding
 }
 rm(list = ls(pat = "resRF"))
 
