@@ -69,7 +69,7 @@ forest_plot <- function(model,outcome,modelID){
   }
   addlines = switch(devstage_n, 4, 3, 2, 1)
   
-  pdf(file=paste('Figures/Forest plot_', outcome,"_",modelID,'.pdf',sep=""),paper="A4")
+  pdf(file=paste('Figures/Forest plot_', str_replace(outcome,':','_'), "_",modelID,'.pdf',sep=""),paper="A4")
   
   ### forest plot with extra annotations
   forestplot<-forest.rma(model, 
@@ -131,12 +131,23 @@ forest_plot <- function(model,outcome,modelID){
 
 
 ### Orchard plot for REmodel
-orchardRE_model <- function(model,n_outcome,I_yposition,heterogeneity){
-  orchard_plot(model[[n_outcome]], mod = 1,"DevelopmentalStage", xlab = "Standardised mean difference", 
+orchardRE_model <- function(model,outcome,I_yposition,heterogeneity){
+
+  switch (length(heterogeneity[[outcome]]),
+                 {1},
+          
+                 {info = paste("italic(I)^{2} ==",heterogeneity[[outcome]][1])
+                 I_xposition=0.8},
+          
+                 {info = paste(list("italic(I)[Total]^{2} ==",
+                                    "italic(I)[Study]^{2} == ",
+                                    "italic(I)[EScluster]^{2} == "),heterogeneity[[outcome]])
+                 I_xposition=c(0.6,0.8,0.7)
+                 })
+  
+  orchard_plot(model, mod = 1,"DevelopmentalStage", xlab = "Standardised mean difference", 
                transfm = "none")+
-    annotate(geom="text", x= 0.80, y= I_yposition[n_outcome], 
-             label= paste0("italic(I)^{2} == ", round(heterogeneity[[n_outcome]][[1]],4)), 
-             color="black", parse = TRUE, size = 5) +
+    annotate(geom="text", x=I_xposition, y=  I_yposition[[outcome]], 
+             label= info, parse = TRUE)+
     scale_fill_manual(values="grey") +
     scale_colour_manual(values="grey")}
-
