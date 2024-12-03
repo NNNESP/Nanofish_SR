@@ -459,7 +459,7 @@ Even if particle material could contribute with the random effects term,
 on this data set its contribution is not significant to justify the
 increase in the model complexity for any of the variables.
 
-# Random effects model
+# Random effects with robust variance model (RERV)
 
 Level 1 - Sampling
 
@@ -522,7 +522,7 @@ names(random_factors) <- outcomeslist
 m1 = vector("list",4)
 names(m1) <- c("null","forest","random_effects","rob_random_effects")
 
-rows = c("k estimates","N studies","ES","SE","ci.lb","ci.ub","pi.lb","pi.ub","I² total","Q","Q p-value")
+rows = c("k estimates","N studies","ES","SE","ci.lb","ci.ub","pi.lb","pi.ub","I² total","sigma²Study","sigma²ES cluster","Q","Q p-value")
 predicted_intervals = data.frame(matrix(nrow=length(rows), ncol=length(outcomeslist)))
 colnames(predicted_intervals) = outcomeslist
 rownames(predicted_intervals) = rows
@@ -556,15 +556,22 @@ for(outcome in outcomeslist)
               cluster = m1$random_effects[[outcome]]$mf.r[[1]][,1], clubSandwich = TRUE)
 
  # Heterogeneity
- heterogeneity[[outcome]]= round(i2_ml(m1$rob_random_effects[[outcome]]),2)
+ heterogeneity[[outcome]]$i2= round(i2_ml(m1$rob_random_effects[[outcome]]),2)
+ heterogeneity[[outcome]]$sigma2= round(m1$rob_random_effects[[outcome]]$sigma2,2)
   
   # compute predicted outcomes (with corresponding CIs) as needed
   pi <- predict(m1$rob_random_effects[[outcome]])
+  
+  if (length(heterogeneity[[outcome]]$sigma2)==1)
+  {heterogeneity[[outcome]]$sigma2[[2]]=NA}
+  
   predicted_intervals[[outcome]] <- round(c(m1$rob_random_effects[[outcome]]$k,
                                              m1$rob_random_effects[[outcome]]$n,
                                              pi$pred, pi$se, pi$ci.lb, 
                                              pi$ci.ub, pi$pi.lb, pi$pi.ub, 
-                                             heterogeneity[[outcome]][[1]],
+                                             heterogeneity[[outcome]]$i2[[1]],
+                                             heterogeneity[[outcome]]$sigma2[[1]],
+                                             heterogeneity[[outcome]]$sigma2[[2]],
                                              m1$rob_random_effects[[outcome]]$QE,
                                              m1$rob_random_effects[[outcome]]$QEp
                                              ),2)
@@ -624,7 +631,7 @@ for(outcome in outcomeslist)
 { 
   pdf(file=paste('Figures/Orchard plot_',str_replace(outcome,':','_'),"_",'REmodel','.pdf',sep=""),paper="A4")
   
-  print(orchardRE_model(m1$rob_random_effects[[outcome]],outcome,I_yposition,heterogeneity))
+  print(orchardRE_model(m1$rob_random_effects[[outcome]],outcome,I_yposition,heterogeneity[[outcome]]$i2))
   
   dev.off()
 }
@@ -632,13 +639,10 @@ for(outcome in outcomeslist)
 #![A local image](r-project.png)
 ```
 
-# Meta-regression
+# Meta-regression (MLME)
 
-Multilevel Model (multilevel model)+ Moderators = multilevel
-mixed-effects model or multilevel meta-regression model
-
-"A random meta-regression requires each of its moderators to have at
-least five studies, multilevel needs to be evaluated"
+Multilevel Model (multilevel model) + Moderators = **multilevel
+mixed-effects model** or multilevel meta-regression model
 
 **SYRCLE PROTOCOL:** Metarregression will be used for outcomes with at
 least 10 experiments.
@@ -706,6 +710,7 @@ least 10 experiments.
 ```{r}
 #  “which moderators affect hand-eye association?” -> meta-regression model 
 # “which combinations of (categories of) moderators are influential?”. -> meta-CART
+
 ```
 
 ### Correlation between moderators
