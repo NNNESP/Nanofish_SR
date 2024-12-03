@@ -519,8 +519,8 @@ names(random_factors) <- outcomeslist
 
 ```{r}
 # Create variable to store random effects with robust variance estimation models
-m1 = vector("list",4)
-names(m1) <- c("null","forest","random_effects","rob_random_effects")
+m1 = vector("list",5)
+names(m1) <- c("null","forest","random_effects","rob_random_effects","metaCART")
 
 rows = c("k estimates","N studies","ES","SE","ci.lb","ci.ub","pi.lb","pi.ub","I² total","sigma²Study","sigma²ES cluster","Q","Q p-value")
 predicted_intervals = data.frame(matrix(nrow=length(rows), ncol=length(outcomeslist)))
@@ -621,7 +621,7 @@ k = number of ES
 
 g = number of studies
 
-```{r}
+```{r warning=FALSE}
 #heterogeneity
 
 I_yposition = as.list(c(-20,20,-10,5,10,15,20,5,-5,1,0.5,5,5))
@@ -631,60 +631,12 @@ for(outcome in outcomeslist)
 { 
   pdf(file=paste('Figures/Orchard plot_',str_replace(outcome,':','_'),"_",'REmodel','.pdf',sep=""),paper="A4")
   
-  print(orchardRE_model(m1$rob_random_effects[[outcome]],outcome,I_yposition,heterogeneity[[outcome]]$i2))
+  print(orchardRE_model(m1$rob_random_effects[[outcome]],outcome,I_yposition,heterogeneity[[outcome]]))
   
   dev.off()
 }
 
 #![A local image](r-project.png)
-```
-
-# Meta-regression (MLME)
-
-Multilevel Model (multilevel model) + Moderators = **multilevel
-mixed-effects model** or multilevel meta-regression model
-
-**SYRCLE PROTOCOL:** Metarregression will be used for outcomes with at
-least 10 experiments.
-
-**DROP:** GSH content, Speed during feeding, Predatory Performance
-
-## Possible moderators or fixed effects to be evaluated as sources of heterogeneity
-
-*neurobiological*
-
--   developmental stage (DevelopmentalStage)
-
--   **species (Species)**
-
--   **sex (Sex)**
-
-*methodological*
-
--   **dose (Concentration_mg_L)**
-
--   rota de administracão (AdministrationRoute)
-
--   particle
-
-    -   material (ParticleMaterial)
-
-    -   shape (ParticleShape)
-
-    -   size (ParticleSizeMean)
-
--   **exposure duration (ExposureDurationDays)**
-
-*sociological*
-
--   publication bias (se[i] as moderator)
-
--   publication year (for publication bias?)
-
-**choosed to evaluate**
-
-```{r}
-
 ```
 
 # Random effects Meta-CART
@@ -708,71 +660,262 @@ least 10 experiments.
 > 2657–2673 (2020). <https://doi.org/10.3758/s13428-020-01360-0>
 
 ```{r}
-#  “which moderators affect hand-eye association?” -> meta-regression model 
-# “which combinations of (categories of) moderators are influential?”. -> meta-CART
+# “which combinations of (categories of) moderators are influential?”
+outcomeslist2 <- outcomeslist[c(1,2,3,5,6,7,8)]
 
-```
-
-### Correlation between moderators
-
-As multilevel models are sensitive to correlated variables, the chosen
-variables must be evaluated. --\> de onde saiu essa
-informação??????????????????????????????????????????????????????????????
-Outra abordagem --\>
-<https://link.springer.com/article/10.3758/s13428-020-01360-0>
-
-```{r}
-moderators <- moderatorslist[c(3,9,6,8)]
-model_mods = as.formula( ~ ExposureDurationDays + DevelopmentalStage + DevelopmentalStage*ExposureDurationDays
-              + ParticleSizeMean + Concentration_mg_L -1)
-```
-
-```{r}
-# Create variable to store random effects with robust variance estimation models
-res.meta = vector("list",nlevels(outcomeslist))
-heterogeneity = vector("list",nlevels(outcomeslist))
-pi = vector("list",nlevels(outcomeslist))
-pi = vector("list",nlevels(outcomeslist))
-
-# Select data
-for(n_outcome in sequence(nlevels(outcomeslist)))
+for(outcome in outcomeslist2)
 {
-  print(paste("** Meta-regresion",outcomeslist[n_outcome],"**"))
-  
-  df <- df_original[ which(df_original$Outcome==outcomeslist[n_outcome] ),]
+  # Select data
+  df <- df_original[ which(df_original$Outcome==outcome ),]
   df <-df[order(df$DevelopmentalStage,-df$yi),]
-  df1 <- select(df, c("StudyCluster", "Study", "EScluster", moderatorslist[c(3,9,6,8)],"yi", "vi"))
-  df<- df[complete.cases(df1),]
   
-  # fit multivariate/multilevel model with appropriate fixed/random effects
-  res.meta[[n_outcome]] <- rma.mv(yi, vi,
-                            random = random_factors[[n_outcome]],
-                            mods = model_mods,
-                            data=df, 
-                            slab = Study,
-                            method="REML",  
-                            test="t", dfs="contain", level=95)
-  # apply cluster-robust inference methods (robust variance estimation) using the improved methods from the clubSandwich package
-  res.meta[[n_outcome]] <- robust(res.meta[[n_outcome]], cluster = res.meta[[n_outcome]]$mf.r[[1]][,1], clubSandwich = TRUE)
+  print(outcome)
+  
+  m1$metaCART[[outcome]] <- REmrt(yi ~ DevelopmentalStage
+                                  + ParticleMaterial + ParticleShape + ParticleSizeMean
+                                  + AdministrationRoute + Concentration_mg_L 
+                                  + ExposureDurationDays + Sex,
+                                  data = df,
+                                  vi = vi,
+                                  c = 1,
+                                  maxL = 10L, #maximum number of splits in the tree growing process
+                                  minsplit = 6L, # minimum number of studies that must exist in a parent node for a split to be attempted
+                                  cp = 1e-04, #minimal improve of complexity parameter (i.e., QB divided by Q) to make a split in the growing process
+                                  minbucket = 3, # minimum number of studies in any terminal node
+                                  xval = 10, #number of cross-validations in the pruning process
+                                  lookahead = FALSE) # logical indicator to specify whether to apply the look-ahead strategy
+  summary(m1$metaCART[[outcome]])
+  
+  pdf(file=paste('Figures/metaCART_',str_replace(outcome,':','_'),"_",'REmodel','.pdf',sep=""),paper="A4")
+  print(plot(m1$metaCART[[outcome]]))
+  dev.off()
+}
+```
 
-  # Heterogeneity
-  heterogeneity[[n_outcome]]= round(i2_ml(res.meta[[n_outcome]]),2)
+# Meta-regression (MLME)
+
+Multilevel Model (multilevel model) + Moderators = **multilevel
+mixed-effects model** or multilevel meta-regression model
+
+**SYRCLE PROTOCOL:** Metarregression will be used for outcomes with at
+least 10 experiments.
+
+**DROP:** GSH content, Speed during feeding, Predatory Performance
+
+### Possible moderators or fixed effects to be evaluated as sources of heterogeneity
+
+*neurobiological*
+
+-   **developmental stage (DevelopmentalStage)**
+
+-   species (Species)
+
+-   sex (Sex)
+
+*methodological*
+
+-   **dose (Concentration_mg_L)**
+
+-   rota de administracão (AdministrationRoute)
+
+-   particle
+
+    -   material (ParticleMaterial)
+
+    -   shape (ParticleShape)
+
+    -   **size (ParticleSizeMean)**
+
+-   **exposure duration (ExposureDurationDays)**
+
+*sociological*
+
+-   publication bias (se[i] as moderator)
+
+-   publication year (for publication bias?)
+
+**choosed to evaluate**
+
+Multilevel models are sensitive to correlated variables, the chosen
+variables must be evaluated for multicollinearity.
+
+Kim, J.-S., & Frees, E. W. (2007). Multilevel modeling with correlated
+effects. *Psychometrika, 72*(4),
+505–533. [https://doi.org/10.1007/s11336-007-9008-1](https://psycnet.apa.org/doi/10.1007/s11336-007-9008-1)
+
+## Model
+
+```{r}
+# “which moderators affect ES?” -> meta-regression model 
+model_mods = list(formula(~ ExposureDurationDays),
+                  formula(~ DevelopmentalStage-1),
+                  formula(~ ParticleSizeMean),
+                  formula(~ Concentration_mg_L),
+                  formula(~ ExposureDurationDays 
+                         + DevelopmentalStage-1 
+                         + ParticleSizeMean 
+                         + Concentration_mg_L 
+                         + ExposureDurationDays*DevelopmentalStage
+                         + ExposureDurationDays*ParticleSizeMean
+                         + ExposureDurationDays*Concentration_mg_L
+                         + DevelopmentalStage*ParticleSizeMean
+                         + DevelopmentalStage*Concentration_mg_L
+                         + ParticleSizeMean*Concentration_mg_L))                        
+
+m2 = vector("list",5)
+names(m2) <- c("mixed_exposure","mixed_develop","mixed_particlesize","mixed_concentration","mixed_2levels")
+
+for(outcome in outcomeslist[[1]])
+  {
+  # Select data
+  df <- df_original[ which(df_original$Outcome==outcome ),]
+  df <-df[order(df$DevelopmentalStage,-df$yi),]
+  df <- select(df, c("Year", "Study", "EScluster", "ExposureDurationDays", "DevelopmentalStage", "ParticleSizeMean", "Concentration_mg_L","yi", "vi"))
+  df<- df[complete.cases(df),]
+  
+  # fit multilevel model with appropriate fixed and random effects
+  m2$mixed[[outcome]] <- rma.mv(yi, vi,
+              random = random_factors[[outcome]],
+              mods = model_mods,
+              data=df, 
+              slab = Study,
+              method="REML",  
+              test="t", dfs="contain", level=95)
+  
+   #Goodness-of-fit index
+  r2[[n_outcome]] <- r2_ml(res.meta)
+}
+```
+
+Fixed effects structure for each outcome
+
+```{r}
+for(outcome in outcomeslist)
+{
+  if (outcomeslist[[12]]==outcome || outcomeslist[[13]]==outcome)
+    {m$random_effects[[outcome]] <- mRF$StudyID[[outcome]]  }
+  else
+    {m$random_effects[[outcome]] <- mRF$StudyIDExpID[[outcome]]  }
+}
+```
+
+```{r}
+# “which moderators affect ES?” -> meta-regression model 
+model_mods = as.formula( ~ ExposureDurationDays 
+                         + DevelopmentalStage 
+                         + ParticleSizeMean 
+                         + Concentration_mg_L 
+#                         + ExposureDurationDays*DevelopmentalStage
+#                         + ExposureDurationDays*ParticleSizeMean
+#                         + ExposureDurationDays*Concentration_mg_L
+#                         + DevelopmentalStage*ParticleSizeMean
+#                         + DevelopmentalStage*Concentration_mg_L
+#                         + ParticleSizeMean*Concentration_mg_L 
+                          -1)
+
+
+
+
+m2 = vector("list",2)
+names(m2) <- c("mixed","forest")
+
+rows = c("k estimates","N studies","I² total","sigma²Study","sigma²ES cluster","Q","Q p-value")
+results_table2 = data.frame(matrix(nrow=length(rows), ncol=length(outcomeslist)))
+colnames(results_table2) = outcomeslist
+rownames(results_table2) = rows
+
+heterogeneity2 = vector("list")
+
+for(outcome in outcomeslist[[1]])
+{
+  # Select data
+  df <- df_original[ which(df_original$Outcome==outcome ),]
+  df <-df[order(df$DevelopmentalStage,-df$yi),]
+  df <- select(df, c("Year", "Study", "EScluster", "ExposureDurationDays", "DevelopmentalStage", "ParticleSizeMean", "Concentration_mg_L","yi", "vi"))
+  df<- df[complete.cases(df),]
+  
+  # fit multilevel model with appropriate fixed and random effects
+  m2$mixed[[outcome]] <- rma.mv(yi, vi,
+              random = random_factors[[outcome]],
+              mods = model_mods,
+              data=df, 
+              slab = Study,
+              method="REML",  
+              test="t", dfs="contain", level=95)
+  
+  # apply cluster-robust inference methods (robust variance estimation) using the improved methods from the clubSandwich package
+   m2$rob_mixed[[outcome]] <- robust(m2$mixed[[outcome]], 
+            cluster = m2$mixed[[outcome]]$mf.r[[1]][,1], clubSandwich = TRUE,verbose=TRUE)
+
+ # Heterogeneity
+ heterogeneity2[[outcome]]$i2     = round(i2_ml(m2$mixed[[outcome]]),2)
+ heterogeneity2[[outcome]]$sigma2 = round(m2$mixed[[outcome]]$sigma2,2)
   
   # compute predicted outcomes (with corresponding CIs) as needed
-  pi[[n_outcome]] <- predict(res.meta[[n_outcome]])
-
+  pi2 <- predict(m2$mixed[[outcome]])
+  
+  if (length(heterogeneity2[[outcome]]$sigma2)==1)
+  {heterogeneity2[[outcome]]$sigma2[[2]]=NA}
+  
+  results_table2[[outcome]] <- round(c(m2$mixed[[outcome]]$k,
+                                             m2$mixed[[outcome]]$n,
+                                             heterogeneity2[[outcome]]$i2[[1]],
+                                             heterogeneity2[[outcome]]$sigma2[[1]],
+                                             heterogeneity2[[outcome]]$sigma2[[2]],
+                                             m2$mixed[[outcome]]$QE,
+                                             m2$mixed[[outcome]]$QEp
+                                             ),2)
   #Goodness-of-fit index
-  r2[[n_outcome]] <- r2_ml(res.meta)
-
+  #r2[[n_outcome]] <- r2_ml(res.meta)
+  
   # test sets of coefficients / linear combinations as needed
+  
   # anova(res_rob)
   
-  forestmeta_plot(res.meta[[n_outcome]],outcomeslist[[n_outcome]],"FullMetaModel",model_mods)
+  # forest
+  #m2$mixed[[outcome]]<-forest_plot(m2$mixed[[outcome]],outcome,"Mixed model")
 }
-#paste(format(r2[1]*100,digits=4), "% of the variation among effect sizes is explained by",formula(res_meta))
 
-for(n_outcome in sequence(nlevels(outcomeslist)))
-{
-  orchard_plot(res.rob_random_effects[[n_outcome]], xlab = "Standardised mean difference", transfm = "none")}
+results_table2 = cbind(rows,results_table2)
+```
 
+## Results table
+
+```{r}
+gt_tbl <-
+  gt(results_table2,rowname_col = "rows",) |>
+  tab_spanner(label = "Neurochemical outcomes" ,columns = seq(1:9)) |>
+  tab_spanner(label = "Motor function"        ,columns = c(10)) |>
+  tab_spanner(label = "Sensory motor function",columns = c(11)) |>
+  tab_spanner(label = "Feeding behaviour"     ,columns = c(12:14)) |>
+  cols_align(align = "center", columns = 2:14)|>
+  cols_align(align = "left", columns = 1)|>
+  cols_width(2:14 ~ px(100))
+#  tab_style(style = cell_text(align = "center"),
+#    locations = cells_column_labels(columns = 2:14))
+
+for (outcome in outcomeslist) {
+  gt_tbl <- gt_tbl |>
+    cols_label(!!outcome := sub(".*:\\s*","",outcome))
+}
+
+gt_tbl 
+```
+
+## Orchard plot
+
+```{r}
+#heterogeneity
+
+I_yposition = as.list(c(-20,20,-10,5,10,15,20,5,-5,1,0.5,5,5))
+names(I_yposition)=outcomeslist
+
+for(outcome in outcomeslist)
+{ 
+  pdf(file=paste('Figures/Orchard plot_',str_replace(outcome,':','_'),"_",'REmodel','.pdf',sep=""),paper="A4")
+  
+  print(orchardRE_model(m1$rob_random_effects[[outcome]],outcome,I_yposition,heterogeneity[[outcome]]))
+  
+  dev.off()
+}
 ```

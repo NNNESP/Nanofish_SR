@@ -136,15 +136,15 @@ forest_plot <- function(model,outcome,modelID){
 ### Orchard plot for REmodel
 orchardRE_model <- function(model,outcome,I_yposition,heterogeneity){
 
-  switch (length(heterogeneity[[outcome]]),
+  switch (length(heterogeneity$i2),
                  {1},
           
-                 {info = paste("italic(I)^{2} ==",heterogeneity[[outcome]][1])
+                 {info = paste("italic(I)^{2} ==",heterogeneity$i2[[1]])
                  I_xposition=0.8},
           
                  {info = paste(list("italic(I)[Total]^{2} ==",
                                     "italic(I)[Study]^{2} == ",
-                                    "italic(I)[EScluster]^{2} == "),heterogeneity[[outcome]])
+                                    "italic(I)[EScluster]^{2} == "),heterogeneity$i2)
                  I_xposition=c(0.6,0.8,0.7)
                  })
   
