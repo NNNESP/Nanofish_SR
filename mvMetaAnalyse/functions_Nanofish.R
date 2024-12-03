@@ -20,13 +20,16 @@ load_prep_df <- function(file){
                                           "Feeding behaviour: Speed during feeding"
                                ))
   
+  #factor(gender,levels=c("Male","Female"))
+  #factor(pant,ordered = TRUE,levels = c("L","XL","XXL"))
   # choose classes
   df_original$StudyID      <- factor(df_original$StudyID)
   df_original$StudyCluster <- factor(df_original$StudyCluster)
   df_original$EScluster    <- factor(df_original$EScluster)
   df_original$DevelopmentalStage<-factor(sub(".* ", "", 
                                              df_original$DevelopmentalStage), # remove numbers
-                                         levels = c("Embrio","Larva","Juvenile","Adult","Unclear"))
+                                         ordered = TRUE, levels = c("Embrio","Larva","Juvenile","Adult","Unclear"))
+  df_original$ParticleShape<-factor(sub(".* ", "", df_original$ParticleShape)) # remove numbers
   
   # numeric variables transformation (if needed)
   df_original$ExposureDurationDays<-log10(df_original$ExposureDurationDays+1) 
@@ -145,7 +148,7 @@ orchardRE_model <- function(model,outcome,I_yposition,heterogeneity){
                  I_xposition=c(0.6,0.8,0.7)
                  })
   
-  orchard_plot(model, mod = 1,"DevelopmentalStage", xlab = "Standardised mean difference", 
+  orchard_plot(model, group = "Study", mod = 1,"DevelopmentalStage", xlab = "Standardised mean difference", 
                transfm = "none")+
     annotate(geom="text", x=I_xposition, y=  I_yposition[[outcome]], 
              label= info, parse = TRUE)+

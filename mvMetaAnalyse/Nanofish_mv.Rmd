@@ -9,6 +9,7 @@ output:
 editor_options: 
   markdown: 
     wrap: 72
+  chunk_output_type: inline
 ---
 
 ## Tutorials from:
@@ -55,6 +56,7 @@ library(metafor)
 library(dplyr)
 library(tidyverse)
 library(gt) # https://posit.co/blog/great-looking-tables-gt-0-2/
+library(metacart)
 
 ```
 
@@ -289,16 +291,16 @@ Experiment when at least one new parameter (experiment, study or
 research cluster) if a) Experiment ID, b) Study or c) Research Cluster
 is considered
 
-a) Study + Experiment ID does not fit the data significantly better than
-the only Experiment ID model for GSH content, Motor function: Distance,
-Feeding time and Speed during feeding
+a)  Study + Experiment ID does not fit the data significantly better
+    than the only Experiment ID model for GSH content, Motor function:
+    Distance, Feeding time and Speed during feeding
 
-b) Study + Experiment ID does not fit the data significantly better than
-the only Study model for almost all variables, except for AChE activity,
-GPx activity and Sensory-motor function: Distance
+b)  Study + Experiment ID does not fit the data significantly better
+    than the only Study model for almost all variables, except for AChE
+    activity, GPx activity and Sensory-motor function: Distance
 
-c) Study + Experiment ID does not fit the data significantly better than
-the only Research Cluster model for half of the variables.
+c)  Study + Experiment ID does not fit the data significantly better
+    than the only Research Cluster model for half of the variables.
 
 Although Experiment ID only fit the data well for GSH content, Motor
 function: Distance, Feeding time and Speed during feeding, Study
@@ -397,44 +399,22 @@ Profile likelihood plots shows if the variance component is identifiable
 when there is a peak on the parameter estimates
 (<https://wviechtb.github.io/metafor/reference/profile.rma.html#interpreting-profile-likelihood-plots>).
 
-The variance components proposed for all variables were identifiable.
+The variance components proposed for all variables were identifiable?
 
 Feeding time and speed during feeding: $\sigma_1^2$ for study random
-effects.
+effects. Inclusion of ES cluster for variables feeding time and speed
+during feeding resulted in over-fitting.
 
 All other variables: $\sigma_1^2$ for study and $\sigma_2^2$ for ES
 cluster random effects.
-
-Additionally, inclusion of ES cluster for variables feeding time and
-speed during feeding resulted in over-fitting.
-
-## Random Effects formula for each variable
-
-```{r, echo=TRUE}
-random_factors = list(formula(~1 | Study/EScluster),              # n_outcome = 1,
-                      formula(~1 | Study/EScluster),              # n_outcome = 2,
-                      formula(~1 | Study/EScluster),              # n_outcome = 3,
-                      formula(~1 | Study/EScluster),              # n_outcome = 4,
-                      formula(~1 | Study/EScluster),              # n_outcome = 5,
-                      formula(~1 | Study/EScluster),              # n_outcome = 6,
-                      formula(~1 | Study/EScluster),              # n_outcome = 7, 
-                      formula(~1 | Study/EScluster),              # n_outcome = 8,
-                      formula(~1 | Study/EScluster),              # n_outcome = 9,
-                      formula(~1 | Study/EScluster),              # n_outcome = 10,
-                      formula(~1 | Study/EScluster),              # n_outcome = 11,
-                      formula(~1 | Study),                        # n_outcome = 12,
-                      formula(~1 | Study))                        # n_outcome = 13
-names(random_factors) <- outcomeslist
-# - = change of model not recommended 
-# Study = can be a Study only analysis
-# null = random effects could be omitted according to Likelihood ratio tests
-```
 
 ## Extended possible random factors
 
 Particle Material: Due to chemical composition
 
 ```{r}
+# rodar próximo chunck antes desse
+
 columns = c("LRT (PM)","pval (PM)") 
 rst_tbl = data.frame(matrix(nrow = 0, ncol = length(columns))) 
 colnames(rst_tbl) = columns
@@ -475,13 +455,17 @@ print(rst_tbl)
 #rm("df1")
 ```
 
-### Conclusion
-
 Even if particle material could contribute with the random effects term,
 on this data set its contribution is not significant to justify the
 increase in the model complexity for any of the variables.
 
-# Random Effects model
+# Random effects model
+
+Level 1 - Sampling
+
+Level 2 - Effect size cluster: within studies variability
+
+(Level 3 - Study cluster: between studies variability)
 
 $ES_{[i]} = \beta_0 +u_{b[j]}+u_{w[i]}+e_{[i]}$,
 
@@ -511,17 +495,36 @@ $e_{[i]}$ = sampling error; sampling variance
 Since this was the criteria used to select the variables to be analysed,
 all variables were included.
 
+## Random Effects formula for each variable
+
+```{r, echo=TRUE}
+random_factors = list(formula(~1 | Study/EScluster),              # n_outcome = 1,
+                      formula(~1 | Study/EScluster),              # n_outcome = 2,
+                      formula(~1 | Study/EScluster),              # n_outcome = 3,
+                      formula(~1 | Study/EScluster),              # n_outcome = 4,
+                      formula(~1 | Study/EScluster),              # n_outcome = 5,
+                      formula(~1 | Study/EScluster),              # n_outcome = 6,
+                      formula(~1 | Study/EScluster),              # n_outcome = 7, 
+                      formula(~1 | Study/EScluster),              # n_outcome = 8,
+                      formula(~1 | Study/EScluster),              # n_outcome = 9,
+                      formula(~1 | Study/EScluster),              # n_outcome = 10,
+                      formula(~1 | Study/EScluster),              # n_outcome = 11,
+                      formula(~1 | Study),                        # n_outcome = 12,
+                      formula(~1 | Study))                        # n_outcome = 13
+names(random_factors) <- outcomeslist
+# - = change of model not recommended 
+# Study = can be a Study only analysis
+# null = random effects could be omitted according to Likelihood ratio tests
+```
+
 ```{r}
 # Create variable to store random effects with robust variance estimation models
 m1 = vector("list",4)
 names(m1) <- c("null","forest","random_effects","rob_random_effects")
-m1$null =        vector("list",nlevels(outcomeslist))
-m1$forest =        vector("list",nlevels(outcomeslist))
-m1$random_effects =        vector("list",nlevels(outcomeslist))
-m1$rob_random_effects =        vector("list",nlevels(outcomeslist))
 
 rows = c("k estimates","N studies","ES","SE","ci.lb","ci.ub","pi.lb","pi.ub","I² total","Q","Q p-value")
-predicted_intervals = data.frame(matrix(nrow=length(rows), ncol=length(outcomeslist))) colnames(predicted_intervals) = outcomeslist
+predicted_intervals = data.frame(matrix(nrow=length(rows), ncol=length(outcomeslist)))
+colnames(predicted_intervals) = outcomeslist
 rownames(predicted_intervals) = rows
 
 heterogeneity = vector("list")
@@ -603,17 +606,25 @@ gt_tbl
 
 ## Orchard plot
 
+orchard plot displays the prediction interval of the overall effect
+(bold whiskers), the number of effect sizes (k) and the number of
+studies (the number in the bracket).
+
+k = number of ES
+
+g = number of studies
+
 ```{r}
-heterogeneity
+#heterogeneity
 
 I_yposition = as.list(c(-20,20,-10,5,10,15,20,5,-5,1,0.5,5,5))
 names(I_yposition)=outcomeslist
 
-for(outcome in outcomeslist[[1]])
+for(outcome in outcomeslist)
 { 
-  pdf(file=paste('Figures/Orchard',str_replace(outcome,':','_'),'REmodel','.pdf'),width=4,height=6)
+  pdf(file=paste('Figures/Orchard plot_',str_replace(outcome,':','_'),"_",'REmodel','.pdf',sep=""),paper="A4")
   
-  orchardRE_model(m1$rob_random_effects[[outcome]],outcome,I_yposition,heterogeneity)
+  print(orchardRE_model(m1$rob_random_effects[[outcome]],outcome,I_yposition,heterogeneity))
   
   dev.off()
 }
@@ -621,35 +632,81 @@ for(outcome in outcomeslist[[1]])
 #![A local image](r-project.png)
 ```
 
-## Multilevel Model (multilevel model)+ Moderators (multilevel mixed-effects model or multilevel meta-regression model)
+# Meta-regression
 
-# Multilevel Model
-
-Level 1 - Sampling Level 2 - Effect size cluster: within studies
-variability
-Le![](http://127.0.0.1:42065/chunk_output/s/2D748050/c7x2tw09ur7gj/000030.png)vel
-3 - Study cluster: between studies variability orchard plot displays the
-prediction interval of the overall effect (bold whiskers), the number of
-effect sizes (k) and the number of studies (the number in the bracket).
-
-# Possible moderators or fixed effects to be evaluated as souces of heterogeneity
-
-*neurobiological* - developmental stage (DevelopmentalStage) **- species
-(Species) - sex (Sex) *methodological* - dose (Concentration_mg_L)** -
-rota de administracão (AdministrationRoute) - particle - material
-(ParticleMaterial) - shape (ParticleShape) - size (ParticleSizeMean) **-
-exposure duration (ExposureDurationDays)** *sociological* - publication
-bias (se[i] as moderator) - publication year (for publication bias?)
-
-\*\* choosed to evaluate
+Multilevel Model (multilevel model)+ Moderators = multilevel
+mixed-effects model or multilevel meta-regression model
 
 "A random meta-regression requires each of its moderators to have at
 least five studies, multilevel needs to be evaluated"
 
-SYRCLE PROTOCOL: Metarregression will be used for outcomes with at least
-10 experiments.
+**SYRCLE PROTOCOL:** Metarregression will be used for outcomes with at
+least 10 experiments.
 
-DROP: GSH content, Speed during feeding, Predatory Performance
+**DROP:** GSH content, Speed during feeding, Predatory Performance
+
+## Possible moderators or fixed effects to be evaluated as sources of heterogeneity
+
+*neurobiological*
+
+-   developmental stage (DevelopmentalStage)
+
+-   **species (Species)**
+
+-   **sex (Sex)**
+
+*methodological*
+
+-   **dose (Concentration_mg_L)**
+
+-   rota de administracão (AdministrationRoute)
+
+-   particle
+
+    -   material (ParticleMaterial)
+
+    -   shape (ParticleShape)
+
+    -   size (ParticleSizeMean)
+
+-   **exposure duration (ExposureDurationDays)**
+
+*sociological*
+
+-   publication bias (se[i] as moderator)
+
+-   publication year (for publication bias?)
+
+**choosed to evaluate**
+
+```{r}
+
+```
+
+# Random effects Meta-CART
+
+> when the number of included studies is small, meta-regression suffers
+> from low statistical power to examine all moderators simultaneously
+> (Tanner-Smith &
+> Grant, [2018](https://link.springer.com/article/10.3758/s13428-020-01360-0#ref-CR37 "Tanner-Smith, E. E., & Grant, S. (2018). Meta-analysis of complex interventions. Annual Review of Public Health, 39, 135– 151.")).
+> Second, meta-regression has difficulties in exploring interaction
+> effects among moderators since it requires moderators and their
+> interactions to be specified beforehand. When there are no a priori
+> hypotheses available, the number of all possible interaction terms are
+> usually too large to be included in one model. The interaction
+> effects, however, can provide valuable information to answer questions
+> such like “do these intervention components amplify or attenuate each
+> other’s effectiveness?” and “which combination of study
+> characteristics results in the highest effectiveness?”.
+>
+> Li, X., Dusseldorp, E., Su, X. *et al.* Multiple moderator
+> meta-analysis using the R-package Meta-CART. *Behav Res* **52**,
+> 2657–2673 (2020). <https://doi.org/10.3758/s13428-020-01360-0>
+
+```{r}
+#  “which moderators affect hand-eye association?” -> meta-regression model 
+# “which combinations of (categories of) moderators are influential?”. -> meta-CART
+```
 
 ### Correlation between moderators
 
