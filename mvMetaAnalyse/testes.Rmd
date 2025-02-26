@@ -1,0 +1,291 @@
+---
+title: "Nanofish_mv"
+author: "Querusche"
+date: "2025"
+output:
+  pdf_document: default
+  html_document: default
+  df_print: paged
+editor_options: 
+  markdown: 
+    wrap: 72
+  chunk_output_type: inline
+---
+
+## Tutorials from:
+
+-   Y. Yang, M. Macleod, J. Pan, M. Lagisz, S. Nakagawa, 2023. Advanced
+    methods and implementations for the meta-analyses of animal models:
+    current practices and future recommendations. Neurosci. Biobehav.
+    Rev., 146 <https://doi.org/10.1016/j.neubiorev.2022.105016>
+
+-   Yefeng Yang, Malcom Macleaod, Jinming Pan, Malgorzata Lagisz,
+    Shinichi Nakagawa, 2022. The current practices of meta-analyses
+    using animal models, and underappreciated opportunities using
+    advanced methods: multilevel models and robust variance estimation.
+    Neuroscience & Biobehavioral Reviews.
+    [https://doi.org/10.1016/j.neubiorev.2022z.105016](https://doi.org/10.1016/j.neubiorev.2022.105016){.uri}
+
+-   Wolfgang Viechtbauer <https://www.metafor-project.org>
+    <https://wviechtb.github.io/metafor/reference/misc-recs.html>
+    <https://wviechtb.github.io/meta_analysis_books/>
+
+-   Shinichi Nakagawa, Malgorzata Lagisz, Rose E. O’Dea, Patrice
+    Pottier, Joanna Rutkowska, Alistair M. Senior, Yefeng Yang, Daniel
+    W.A. Noble. 2023. orchaRd 2.0: An R package for visualizing
+    meta-analyses with orchard plots. Methods in Ecology and Evolution,
+    <https://doi.org/10.1111/2041-210X.14152> (preprint = EcoEvoRxiv,
+    <https://doi.org/10.32942/X2QC7>).
+    <https://daniel1noble.github.io/orchaRd/>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(fig.pos = "H", out.extra = "")
+
+devtools::install_github("daniel1noble/orchaRd", ref = "main", force = TRUE)
+pacman::p_load(devtools, tidyverse, metafor, patchwork, R.rsp, orchaRd, emmeans,
+    ape, phytools, flextable)
+
+library(clubSandwich)
+library(GGally)
+library(ggplot2)
+library(grid)
+library(gridExtra)
+library(pacman)
+library(metafor)
+library(dplyr)
+library(tidyverse)
+library(gt) # https://posit.co/blog/great-looking-tables-gt-0-2/
+library(metacart)
+
+```
+
+## Preparing data
+
+1 - load data 2 - configures factor and numeral variables 3 -
+transformations of numeral variables
+
+NA = not applicable Unclear = unavailable information on the paper
+
+```{r Load data, echo=FALSE}
+
+source("functions_Nanofish.R",encoding = "UTF-8")
+m = vector("list",3)
+names(m) <- c("null","forest","random_effects")
+
+df_original<-load_prep_df("mvMetaAnalysis.csv")
+
+datainfo <- summary(df_original)
+# write.table(datainfo, "descriptives.txt", sep="\t")
+
+variables <- variable.names(df_original)
+outcomeslist = sort(unique(df_original$Outcome))
+moderatorslist = c(   "Species",
+                      "Sex",
+                      "DevelopmentalStage",
+                      "ParticleMaterial", 
+                      "ParticleShape", 
+                      "ParticleSizeMean",
+                      "AdministrationRoute", 
+                      "Concentration_mg_L",
+                      "ExposureDurationDays")
+
+outcomeslist
+moderatorslist
+```
+
+## Calculate effect size
+
+"SMD" for the standardized mean difference (Hedges, 1981) "SMDH" for the
+standardized mean difference with heteroscedastic population variances
+in the two groups (Bonett, 2008, 2009)
+
+UB = to compute unbiased estimates of the sampling variances (equation 9
+in Hedges, 1983)
+
+```{r}
+df_original <- escalc(measure = "SMD", 
+             n1i = n_treat, #n of treatment group
+             n2i = n_ctrl, #n of control group
+             m1i = mean_treat, #mean of treatment group 
+             m2i = mean_ctrl, #mean of control group
+             sd1i = STD_treat, #sd of treatment group
+             sd2i = STD_ctrl, #sd of control group
+             data = df_original, vtype = "UB") 
+write.csv(df_original,file = "mvMetaAnalysis_SMDs.csv")
+```
+
+## Descriptives plots
+
+```{r echo=FALSE}
+#ggpairs(df_original, mapping = aes(color = Shape, alpha = 0.3), columns = moderatorslist,title = "")
+
+#pdf(file='Figures/Boxplot_ESbyOutcome.pdf') # Open SVG device with specific file name
+df_original %>%
+  mutate(class = factor(Outcome, levels = rev(levels(Outcome)))) %>%
+  ggplot( aes(yi, class, fill=class))+ 
+    geom_boxplot() +
+    xlab("ES") + 
+    ylab("") +
+    theme_bw(base_size = 18) +
+    theme(legend.position="none")
+set_plot_dimensions(7, 7)
+# dev.off()
+```
+
+# Random variables fitting
+
+```{r}
+n_outcome = 11
+
+outcome<-as.character(outcomeslist[n_outcome])
+df <- df_original[ which(df_original$Outcome == outcome ),]
+df <- df[order(df$DevelopmentalStage,-df$yi),]
+
+models = c("null", "Exp", "Study", "Study_Exp", "Cluster_Study_Exp")
+
+mRF = vector("list",5) ; names(mRF) <- models
+anova = vector("list",5) ; names(anova) <- models
+
+### fit random-effects null model - 1 level
+m$null[[outcome]] <- rma.mv(yi, vi, data=df, method="ML")
+
+# 2 level model 1
+m$Exp[[outcome]] <- rma.mv(yi, vi, random = ~ 1 | StudyCluster/Study/EScluster,
+            data=df, sigma2=c(0,0,NA),method="ML")
+
+# 2 level model 2
+m$Study[[outcome]] <- rma.mv(yi, vi,random = ~ 1 | StudyCluster/Study/EScluster, 
+            data=df, sigma2=c(0,NA,0), method="ML")
+
+# 3 level model
+m$Study_Exp[[outcome]] <- rma.mv(yi, vi, random = ~ 1 | StudyCluster/Study/EScluster, 
+            data=df, sigma2=c(0,NA,NA), method="ML")
+
+# 4 level model
+m$Cluster_Study_Exp[[outcome]] <- rma.mv(yi, vi, random = ~ 1 | StudyCluster/Study/EScluster,
+            data=df, sigma2=c(NA,NA,NA), method="ML")
+
+anova(m$null[[outcome]], m$Exp[[outcome]])
+anova(m$null[[outcome]], m$Study[[outcome]])
+anova(m$Exp[[outcome]],  m$Study_Exp[[outcome]])
+anova(m$Study[[outcome]],m$Study_Exp[[outcome]])
+anova(m$Study_Exp[[outcome]],m$Cluster_Study_Exp[[outcome]])
+```
+
+```{r}
+
+ # Select data
+  df <- df_original[ which(df_original$Outcome==outcome ),]
+  df <-df[order(df$DevelopmentalStage,-df$yi),]
+  df <- select(df, c("Year", "Study", "EScluster", "ExposureDurationDays",
+                "DevelopmentalStage", "ParticleSizeMean", "Concentration_mg_L",
+                "n_ctrl","n_treat","yi", "vi"))
+  df<- df[complete.cases(df),]
+  
+# 3 level model
+m1$RE_REML[[outcome]]<-rma.mv(yi, vi, 
+            random = ~ 1 | Study/EScluster, 
+            mods = formula(~  DevelopmentalStage*ExposureDurationDays
+                           +Concentration_mg_L
+                           +ParticleSizeMean),
+            data=df,
+            method="REML")
+
+m1$RERV_REML[[outcome]] <- robust(m1$RE_REML[[outcome]], cluster = Study, 
+                                  clubSandwich = TRUE)
+
+model <- m1$RERV_REML[[outcome]]
+
+cat_model <- orchaRd::mod_results(model, group = "Study", mod = "DevelopmentalStage", N="n_treat")
+
+orchaRd::orchard_plot(cat_model, xlab = "ES", angle = 0) 
+
+
+cros_bubble <- orchaRd::mod_results(model, mod = "ExposureDurationDays", group = "Study", weights = "prop", by = "DevelopmentalStage")
+
+orchaRd::bubble_plot(cros_bubble, group = "Study", mod = "ExposureDurationDays", xlab = "ExposureDurationDays", legend.pos = "top.left")
+
+
+con_bubble <- orchaRd::mod_results(model, mod = "Concentration_mg_L", group = "Study", weights = "prop")
+
+orchaRd::bubble_plot(con_bubble, group = "Study", mod = "Concentration_mg_L", xlab = "Concentration_mg_L", legend.pos = "top.left", k =TRUE, g=TRUE)
+
+con_bubble <- orchaRd::mod_results(model, mod = "ParticleSizeMean", group = "Study", weights = "prop")
+
+orchaRd::bubble_plot(con_bubble, group = "Study", mod = "ParticleSizeMean", xlab = "Concentration_mg_L", legend.pos = "top.left", k =TRUE, g=TRUE)
+```
+
+```{r}
+# Select data
+    df <- df_original[df_original$Outcome==outcome,]
+    df <- df[which(!is.na(df$Concentration_mg_L)),]
+    df <- df[order(df$DevelopmentalStage,-df$yi),]
+    df$DevelopmentalStage <- as.numeric(df$DevelopmentalStage)
+    df <- select(df, c("Year", "ExposureDurationDays","DevelopmentalStage"
+                , "ParticleSizeMean", "Concentration_mg_L","yi", "vi"))
+    
+corr <- round(cor(df), 1)
+ggcorrplot(corr, hc.order = TRUE, type = "lower", lab= TRUE, p.mat = cor_pmat(df),
+     outline.col = "white",
+     ggtheme = ggplot2::theme_gray,
+     colors = c("#6D9EC1", "white", "#E46726"))
+
+```
+
+```{r}
+res <- rma.mv(yi, vi, random = ~ 1 | study/esid, data=dat)
+robust(res, cluster=study, clubSandwich=TRUE)
+
+rho <- 0.6 # run sensitivity analysis varying this value
+V <- vcalc(vi, cluster=study, grp1=group1, grp2=group2, w1=n_sz, w2=n_hc,
+           obs=task.diff, rho=rho, data=dat)
+
+res0 <- rma.mv(yi, vi, random = ~ 1 | study/esid, data=dat, sigma2=c(0,NA))
+anova(res0, res)
+res0 <- rma.mv(yi, vi, random = ~ 1 | study/esid, data=dat, sigma2=c(NA,0))
+anova(res0, res)
+
+rma.mv(yi, vi, mods = ~ pubstatus, random = ~ 1 | study/esid, data=dat)
+rma.mv(yi, vi, mods = ~ year, random = ~ 1 | study/esid, data=dat)
+rma.mv(yi, vi, mods = ~ deltype, random = ~ 1 | study/esid, data=dat)
+rma.mv(yi, vi, mods = ~ year + deltype, random = ~ 1 | study/esid, data=dat)
+
+### assume that the effect sizes within studies are correlated with rho=0.6
+V <- vcalc(vi, cluster=study, obs=esid, data=dat, rho=0.6)
+res <- rma.mv(yi, V, random = ~ 1 | study/esid, data=dat)
+robust(res, cluster=study, clubSandwich=TRUE)
+```
+
+o facilitate the interpretation, it is advisable to transform the effect
+back to a normal correlation. This can be done using the convert_z2r
+function in the {esc} package:
+
+library(esc)
+
+convert_z2r(0.52)
+
+i2 \<- var.comp(full.model)
+
+summary(i2)
+
+plot(i2)
+
+Fitting a three-level model only makes sense when it represents the
+variability in our data better than a two-level model. When we find that
+a two-level model provides a fit comparable to a three-level
+model, Occam’s razor should be applied: we favor the two-level model
+over the three-level model, since it is less complex, but explains our
+data just as well.
+
+run sensitivity analysis varying values of rho
+
+especially compared to RVE, which can lead to overly conservative
+results in small samples
+
+```{r}
+#os resultados com o grupo inteiro de dados e só com os que vão para a mateanalise são equiparáveis?
+
+#colocar + x é igual a mod =?
+
+```

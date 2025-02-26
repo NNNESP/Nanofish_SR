@@ -1,0 +1,761 @@
+---
+title: "Nanofish"
+output:
+  html_document:
+    df_print: paged
+bibliography: references.bib
+---
+
+# References
+
+-   [1] Y. Yang, M. Macleod, J. Pan, M. Lagisz, S. Nakagawa, 2023. Advanced methods and implementations for the meta-analyses of animal models: current practices and future recommendations. Neurosci. Biobehav. Rev., 146 <https://doi.org/10.1016/j.neubiorev.2022.105016>
+-   <https://www.metafor-project.org/doku.php/analyses:konstantopoulos2011>
+-   Viechtbauer, W., & Cheung, M. W.-L. (2010). *Outlier and influence diagnostics for meta-analysis. Research Synthesis Methods, 1(2), 112–125.* <doi:10.1002/jrsm.11>
+-   Viechtbauer, W. (2010). Conducting meta-analyses in R with the metafor package. *Journal of Statistical Software, 36*(3), 1–48. <https://doi.org/10.18637/jss.v036.i03>
+
+# Load libraries
+
+```{r global options, warning=FALSE, cache=FALSE}
+library(knitr)
+library(rmdformats)
+
+## Global options~çjk
+knitr::opts_chunk$set(
+  echo = FALSE, cache = TRUE, prompt = FALSE,
+  tidy = TRUE, comment = NA,
+  message = FALSE, warning = FALSE
+)
+
+pacman::p_load(metafor,
+               dplyr,
+               ggalluvial,
+               orchaRd,
+               GGally)
+
+```
+
+# Load functions
+
+```{r}
+# extract values for report in R markdown
+extract_report <- function(m, outcome, RE_formula) {
+  assign("re_formula", deparse(RE_formula[[outcome]]), envir = .GlobalEnv)
+  assign("beta", m$pi$pred, envir = .GlobalEnv)
+  assign("se", m$pi$se, envir = .GlobalEnv)
+  assign("tval", m$pi$tval, envir = .GlobalEnv)
+  assign("ci_lb", m$pi$ci.lb, envir = .GlobalEnv)
+  assign("ci_ub", m$pi$ci.ub, envir = .GlobalEnv)
+  assign("pi_lb", m$pi$pi.lb, envir = .GlobalEnv)
+  assign("pi_ub", m$pi$pi.ub, envir = .GlobalEnv)
+  assign("I2_Total", round(m$i2[1], 2), envir = .GlobalEnv)
+  assign("QE", m$QE, envir = .GlobalEnv)
+  assign("QEp", if (m$QEp < 0.001) "< 0.001" else paste("=", round(m$QEp, 3)), envir = .GlobalEnv)
+  
+  sigma2_text <- paste0("$\\sigma^2_{", sub(".*/", "", m$s.names), "} = ", sprintf("%.2f", m$sigma2), "$", collapse = ", ")
+  assign("sigma2", sigma2_text, envir = .GlobalEnv)
+}
+
+additional_results <- function(m) {
+  m[["i2"]] <- i2_ml(m, boot = 10)
+  m[["pi"]] <- predict(m, digits = 2)
+  m[["icc"]] <- round(m$sigma2 / sum(m$sigma2), 3)
+  
+  return(m)
+}
+```
+
+# Load data
+
+```{r Load data, include=FALSE}
+
+file <- "mvMetaAnalysis.csv"
+
+df_original <- read.csv(file,  header = TRUE, stringsAsFactors = TRUE, na.strings = c("NA"))
+
+# EScluster    = control group cluster
+# StudyCluster = resercher net cluster
+
+# create individual id for each ES
+df_original$ESid <- rep("ES", nrow(df_original))
+df_original$ESid <- paste(df_original$ESid, c(1:nrow(df_original)), sep = "")
+
+# check classes
+str(df_original)
+```
+
+## Adjust classes and transformations
+
+```{r Adjust classes and transformations}
+# adjust classes
+df_original$StudyID      <- factor(df_original$StudyID)
+df_original$StudyCluster <- factor(df_original$StudyCluster)
+df_original$EScluster    <- factor(df_original$EScluster)
+df_original$ParticleShape<-factor(sub(".* ", "",df_original$ParticleShape)) #remove numbers
+df_original$DevelopmentalStage<-factor(
+      sub(".* ", "", df_original$DevelopmentalStage), # remove numbers
+      levels = c("Embrio","Larva","Juvenile","Adult","Unclear"))
+df_original$Outcome <- factor(df_original$Outcome,
+                              levels = c("Neurochemical outcomes: AChE activity", 
+                                         "Neurochemical outcomes: CAT activity",
+                                         "Neurochemical outcomes: GPx activity",
+                                         "Neurochemical outcomes: GSH content",
+                                         "Neurochemical outcomes: GST activity",
+                                         "Neurochemical outcomes: Lipid peroxidation",
+                                         "Neurochemical outcomes: ROS levels",
+                                         "Neurochemical outcomes: SOD activity",
+                                         "Motor function: Distance",
+                                         "Sensory-motor function: Distance",
+                                         "Feeding behaviour: Predatory performance",
+                                         "Feeding behaviour: Feeding time",
+                                         "Feeding behaviour: Speed during feeding"
+                              ))
+# rename levels
+levels(df_original$Outcome) <- c(       "AChE activity", 
+                                        "CAT activity",
+                                        "GPx activity",
+                                        "GSH content",
+                                        "GST activity",
+                                        "Lipid peroxidation",
+                                        "ROS levels",
+                                        "SOD activity",
+                                        "Motor function: Distance",
+                                        "Sensory-motor function: Distance",
+                                        "Predatory performance",
+                                        "Feeding time",
+                                        "Speed during feeding")
+
+# numeric variables transformation
+# df_original$ExposureDurationDays<-log10(df_original$ExposureDurationDays+1) 
+# df_original$Concentration_mg_L  <-log10(df_original$Concentration_mg_L+1) 
+# df_original$ParticleSizeMean    <-log10(df_original$ParticleSizeMean+1)
+
+str(df_original)
+
+outcomeslist = sort(unique(df_original$Outcome))
+```
+
+# Create variables
+
+```{r}
+RE_formula <- setNames(vector("list", length(outcomeslist)), outcomeslist)
+mRF <- list() # random effects formula investigation models
+mRE <- list() # random effects multilevel models
+mMR <- list() # multilevel metaregression models
+```
+
+# Calculate Effect Size
+
+```{r echo=TRUE}
+df_original <- metafor::escalc(measure = "SMD", 
+             n1i = n_treat, #n of treatment group
+             n2i = n_ctrl, #n of control group
+             m1i = mean_treat, #mean of treatment group 
+             m2i = mean_ctrl, #mean of control group
+             sd1i = STD_treat, #sd of treatment group
+             sd2i = STD_ctrl, #sd of control group
+             data = df_original, vtype = "UB") 
+#write.csv(df_original,file = "mvMetaAnalysis_SMDs.csv")
+```
+
+# Select outcome
+
+```{r}
+outcome <- as.character(outcomeslist[[1]])
+
+df <- df_original[ which(df_original$Outcome == outcome ),]
+df <- df[order(df$DevelopmentalStage,-df$yi),]
+
+print(outcome)
+```
+
+# Alluvial plot
+
+```{r}
+### draw an alluvial plot to show the heterogeneous experimental designs of the studies included in the meta-analysis
+
+#make a dataframe of frequencies for selected variables
+freq <- as.data.frame(table(df$DevelopmentalStage, df$ExposureDurationCat, df$ParticleSizeCat, df$ParticleMaterial)) %>%
+    dplyr::rename(Stage = Var1, Duration = Var2,Size = Var3, Material = Var4)
+
+# Check for proper data to plot
+#ggalluvial::is_alluvia_form(as.data.frame(freq), axes = 1:4, silent = FALSE)
+
+ggplot(data = freq, aes(axis1 = Stage, axis2 = Duration,  axis3 = Size, axis4 = Material, y = Freq)) + 
+    geom_alluvium(aes(fill = Stage, colour = Stage)) + 
+    geom_flow() + 
+    geom_stratum() + 
+    geom_text(stat = "stratum", aes(label = after_stat(stratum))) +
+    theme_void() + 
+    theme(legend.position = "none", 
+          plot.title = element_text(hjust = 0, vjust = 3), 
+          axis.title.x = element_text(), axis.text.x = element_text(face = "bold"), 
+          plot.margin = unit(c(1, 1, 0, 1), "cm")
+          ) + 
+  scale_x_discrete(limits = c("Dev. stage", "Duration", "Size","Material"), position = "top")
+# save fig as .png
+# png(filename = "./alluvil_plot.png", width = 8, height = 4, units = "in", type = "windows", res = 400)
+# alluvil_plot
+# dev.off()
+```
+
+# Multilevel meta-analytic model
+
+## Random effects formula desing
+
+```{r}
+# choose a hierarchical structure that represents allow representation of the dependencies between data
+mRF[["base"]] <- rma.mv(yi, vi, 
+                               random = ~ 1 | Study/EScluster/ESid,
+                               data=df, method="ML")
+
+nSt <- mRF[["base"]]$s.nlevels[1] # number of studies
+nEC <- mRF[["base"]]$s.nlevels[2] # number of ESclusters
+nES <- mRF[["base"]]$s.nlevels[3] # number of independent ES (OBS: there is no repeated measurements included)
+
+if (nES == nSt){ 
+  RE_formula[[outcome]] = formula(~1 | Study) # one ES by Study
+} else if (nEC>nSt & nEC<nES){ 
+  RE_formula[[outcome]] = formula(~1 | Study/EScluster/ESid) # more than one EScluster by Study
+} else{
+  RE_formula[[outcome]] = formula(~1 | Study/ESid) # only one EScluster by Study
+}
+
+print(paste0("Considering number of studies: ",nSt,
+            ", number of ES clusters: ",nEC,
+            " and number of independent observations of ES: ",nES,
+            ", the random effects formula for ",outcome,
+            " is: ", deparse(RE_formula[[outcome]])))
+
+REterms <- names(mRF[["base"]]$s.names)
+
+par(mfrow=c(2,3))
+for (j in seq(1:length(REterms))){
+   profile(mRF[["base"]], sigma2=j)
+    title(sub = paste0(REterms[j],", n = ",mRF[["base"]]$s.nlevels[j]),cex.sub = 1)}
+   mtext(paste(outcome,deparse(RE_formula[[outcome]])),
+         cex=0.6,side = 3, line = -1.2, outer = TRUE)
+
+## Overfiting correction check
+mRF[["base"]] <- rma.mv(yi, vi, 
+              random = RE_formula[[outcome]],
+              data=df, method="ML")
+
+REterms <- names(mRF[["base"]]$s.names)
+
+for (j in seq(1:length(REterms))){
+   profile(mRF[["base"]], sigma2=j)
+    title(sub = paste0(REterms[j],", n = ",mRF[["base"]]$s.nlevels[j]),cex.sub = 1)}
+```
+
+## Additional random effects factors
+
+Study cluster, particle material and species as random effects term can further improve results?
+
+```{r}
+res <-vector("list",3)
+
+# selected random effects formula
+mRF[["base"]] <- rma.mv(yi, vi, 
+              random = RE_formula[[outcome]],
+              data=df, method="ML")
+
+# add Study Cluster (nested results were equal)
+mRF[["StudyCluster"]] <- rma.mv(yi, vi, 
+              random = list(~ 1 | StudyCluster, RE_formula[[outcome]]),
+              data=df, method="ML")
+
+# add Particle Material
+mRF[["ParticleMat"]] <- rma.mv(yi, vi, 
+              random = list(RE_formula[[outcome]], ~ 1 | ParticleMaterial),
+              data=df, method="ML")
+
+# add Species
+mRF[["Species"]] <- rma.mv(yi, vi, 
+              random = list(RE_formula[[outcome]], ~ 1 | Species),
+              data=df, method="ML")
+
+t1 <- data.frame(fitstats(mRF[["base"]]),
+                 fitstats(mRF[["StudyCluster"]]),
+                 fitstats(mRF[["ParticleMat"]]),
+                 fitstats(mRF[["Species"]]))
+
+names(t1)<-c("Nested", "+StudyCluster", "+Particle Material", "+Species")
+
+DT::datatable(t1)
+
+res[[1]] <- anova(mRF[["base"]],mRF[["StudyCluster"]])
+res[[2]] <- anova(mRF[["base"]],mRF[["ParticleMat"]])
+res[[3]] <- anova(mRF[["base"]],mRF[["Species"]])
+
+t2 <- data.frame(
+  Comparison = c(
+    "+Study Cluster",
+    "+Particle Material",
+    "+Species"),
+  LRT = sapply(res, function(x) round(x$LRT,2)), # Deviance para o modelo maior
+  p_value = sapply(res, function(x) round(x$pval,3)) # p-value associado
+)
+
+DT::datatable(t2)
+
+
+```
+
+Additional term to insert: `r if (sum(t2[,3]<0.05)==0){"none"} else {t2[t2[,3]<0.05,1]}`
+
+## Main result: Multilevel model with $\rho = 0.5$ and robust variance estimate
+
+```{r}
+# Assumed correlation of rho = 0.5, except if there is only one ES by Study (no correlation)
+if (nES == nSt){
+  VCVrho <- 0
+  VCV <- df$vi
+} else {
+  VCVrho <- 0.5
+  VCV <- vcalc(vi, cluster = interaction(df$EScluster,df$Study), obs = ESid, data = df, rho = VCVrho)
+}
+
+mname<-"ML_RobVar"
+mRE[["ML_REML"]] <- rma.mv(yi, VCV,random = RE_formula[[outcome]],
+                               data=df,slab = Study, method="REML",test="t", 
+                               dfs="contain", level=95)
+mRE[["ML_REML"]] <- additional_results(mRE[["ML_REML"]])
+
+mRE[[mname]] <- robust(mRE[["ML_REML"]], cluster = df$Study, clubSandwich = TRUE)
+mRE[[mname]] <- additional_results(mRE[[mname]])
+
+extract_report(mRE[[mname]], outcome, RE_formula)
+```
+
+```{r}
+df$residuals      <- residuals(mRE[[mname]], type="pearson")  # Resíduos padronizados
+df$ajusted_values <- fitted(mRE[[mname]])  # Valores ajustados pelo modelo
+df$color <- ifelse(abs(df$residuals) > 2, "blue", "black") # outliers (for influential cases)
+
+# Plot 1 - Histograma dos resíduos
+p1 <- ggplot(df, aes(x = residuals)) +
+  geom_histogram(bins = 30, fill = "lightblue", color = "black") +
+  labs(title = "Residuals histogram", x = "Standardized residuals", y = "Frequency") +
+  theme_minimal()
+
+# Plot 2 - QQ Plot dos resíduos
+p2<-ggplot(df, aes(sample = residuals)) +
+  stat_qq(aes(color = after_stat(ifelse(abs(sample) > 2, "blue", "black")))) + 
+  stat_qq_line(color = "red") +
+  scale_color_identity() + # Mantém as cores definidas manualmente
+  labs(title = "Residuals QQ-Plot", x = "Theoretical Quantiles", y = "Observed Residuals") +
+  theme_minimal()
+
+# Plot 3 - Observado vs. Resíduos
+p3 <- ggplot(df, aes(x = yi, y = residuals, color = color)) +
+  geom_point() + scale_color_identity() +
+  geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
+  labs(title = "Observed vs. Residuals", x = "Observed", y = "Standardized residuals") +
+  theme_minimal()
+
+# Plot 4 - Ajustado vs. Resíduos
+p4 <- ggplot(df, aes(x = ajusted_values, y = residuals, color = color)) +
+  geom_point() + scale_color_identity() +
+  geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
+  labs(title = "Fitted vs. Residuals", x = "Fitted values", y = "Standardized residuals") +
+  theme_minimal()
+
+# Plot 5 - Resíduos por estudo (ocupa 2 linhas)
+p5 <- ggplot(data = df, aes(y = Study, x = residuals, color = color)) +
+  geom_jitter(height = 0.2, size = 2) + scale_color_identity() + 
+  geom_vline(xintercept = 0, color = "red", linetype = "dashed") +
+  labs(y = "Study", x = "Standardized residuals", title = "Residuals for each Study") +
+  theme_minimal()
+
+# Organizando os gráficos
+layout <- "
+ABE
+CDE
+"
+
+final_plot <- p1 + p2 + p3 + p4 + p5 + 
+  plot_layout(design = layout)
+
+# Exibir a figura
+print(final_plot)
+```
+
+The meta-analysis comprised `r nES` comparisons from `r nEC` control group clusters of `r nSt` independent studies, so the random formula for `r outcome` was `r paste(deparse(RE_formula[[outcome]]))`.
+
+No difference between treatment and control groups (ES = `r beta` ± `r se`, CI95% = `r ci.lb` to `r ci.ub`, predicted interval `r pi.lb` to `r pi.ub`), with high heterogeneity (i² = `r I2_Total`, Q = `r QE`, p `r QEp` ) and variance explained by each component of `r sigma2`.
+
+# Publication bias
+
+**Small-study effect:** when small studies (with small sample sizes) tend to report large effect sizes. [@yang2023] \> When β0 PET is significantly larger than zero in a one-sided test with α = 0.05, we use the intercept of PEESE as the true effect size estimate. If PET’s intercept is not significantly larger than zero, we remain with the PET estimate. [@harrer] (same as two-sided with α = 0.10) \> Egger's regression and its variants suffer from low power and poor performance when there are fewer than 20 effect sizes, or when the overall effect is large. [@nakagawa2022]
+
+**Time-lag bias:** when statistically significant ("positive" results) tend to be published earlier than those with statistically non-significant findings ("negative" results), leading to a decline in reported effect sizes over time (i.e., a decline effect). [@yang2023]
+
+> Given that high heterogeneity may invalidate publication bias test, it is best to account for the potential heterogeneity when testing publication bias. [@yang2023]
+
+So, better use meta-regression dataset, but requires larger dataset to avoid possible convergence issues.
+
+```{r}
+# OBS: Best to account for the potential heterogeneity when testing publication bias (not feasible)
+
+### create publication year centered variable
+df$pub_year <- df$Year-round(mean(df$Year),0)
+
+# PET + year
+df$ESSE <- sqrt(df$vi) ## sampling error for ES
+
+bias <-"PET"
+mRE[[bias]] <- rma.mv(yi, VCV, random = RE_formula[[outcome]],
+                               mods = ~ ESSE + pub_year, 
+                               data=df,slab = Study, method="REML",test="t", 
+                               dfs="contain", level=95)
+mRE[[bias]] <- robust(mRE[[bias]], cluster = df$Study, clubSandwich = TRUE)
+mRE[[bias]] <- additional_results(mRE[[bias]])
+
+# if estimate is significant, assumes a quadratic association between sampling error and effect sizes to avoid a downwardly biased estimate of the bias-corrected overall effect:
+
+# PEESE + year
+if (mRE[[bias]]$pval[2]<0.10){
+  mname<-"PEESE"
+  mRE[[mname]] <- rma.mv(yi, VCV, random = RE_formula[[outcome]],
+              mods = ~ vi + pub_year, 
+              data=df,slab = Study, method="REML",test="t", 
+              dfs="contain", level=95)
+  mRE[[mname]] <- robust(mRE[[mname]], cluster = df$Study, clubSandwich = TRUE)
+  mRE[[mname]] <- additional_results(mRE[[mname]])
+  bias<-mname
+}
+
+print(bias)
+summary(mRE[[bias]])
+# conditional estimate
+```
+
+**Small-study effect** The regression slope of the extended Egger's regression is $\sqrt{SMDSE} = `r mRE[[bias]]$beta[2]`$ Is it statistically different from zero? ($t_{`r m$ddf[2]`} = `r mRE[[bias]]$zval[2]`$, $p =`r mRE[[bias]]$pval[2]`$). no small-study effect exists in this dataset
+
+If p\<0.050: Smaller studies (with larger sampling error) have larger effect sizes –\> small-study effect exists in this dataset. Data is assymmetrically distributed in the funnel plot.
+
+If p\>=0.050: Smaller studies (with larger sampling error) do not have larger effect sizes –\> no small-study effect exists in this dataset. Data is symmetrically distributed in the funnel plot.
+
+**Time-lag bias** Similarly to the decline effect test, under **Model Results**, we can see that the regression slope is <code>pub_year</code> = 0.0008, which is very small and not statistically different from zero (<code>t_value</code> = 0.0130 and <code>p-val</code> = 0.9898). This means studies with statistically significant findings do not tend to be published earlier than these with "negative" results, i.e. no time-lag bias exists in this dataset. Figure S7 clearly shows that the estimates of SMD remain roughly consistent across different publication years.
+
+```{r}
+plot_timelagbias <- bubble_plot(mRE[[bias]], mod = "pub_year", group = "Study",
+                               xlab = "Publication year", ylab = "Effect size (SMD)",
+                               legend.pos = "none") + 
+  scale_x_continuous(breaks = seq(min(df$pub_year),max(df$pub_year)),
+                     labels = seq(min(df$Year),max(df$Year),by = 1))
+plot_timelagbias
+
+plot_smallstudybias <- bubble_plot(mRE[[bias]], mod = "vi", group = "Study",
+            xlab = "Sampling error^2", ylab = "Effect size (SMD)",
+            legend.pos = "none") 
+plot_smallstudybias
+```
+
+### Sensitivity analysis: publication bias with adapted SE (@nakagawa2022methods)
+
+```{r}
+if (mRE[[bias]]$pval[2]<0.05){
+  
+  # calculate modified SE based on effective sample size
+  df$ess_vi <- with(df,sqrt((n_treat + n_ctrl)/(n_treat*n_ctrl)))
+  df$ess_SE <- sqrt(df$ess_vi) ## sampling error for ES
+  
+  # PET + year
+  bias2 <-"PET sensitivity"
+  mRE[[bias2]] <- rma.mv(yi, VCV, random = RE_formula[[outcome]],
+              mods = ~ ess_SE + pub_year, 
+              data=df,slab = Study, method="REML",test="t", 
+              dfs="contain", level=95)
+  mRE[[bias2]] <- robust(mRE[[bias2]], cluster = df$Study, clubSandwich = TRUE)
+  mRE[[bias2]] <- additional_results(mRE[[bias2]])
+  
+  # PEESE + year
+  if (mRE[[bias2]]$pval[2]<0.10){
+    mname <- "PEESE sensitivity"
+    mRE[[mname]] <- rma.mv(yi, VCV, random = RE_formula[[outcome]],
+                mods = ~ ess_vi + pub_year, 
+                data=df,slab = Study, method="REML",test="t", 
+                dfs="contain", level=95)
+    mRE[[mname]] <- robust(mRE[[mname]], cluster = df$Study, clubSandwich = TRUE)
+    mRE[[mname]] <- additional_results(mRE[[mname]])
+    bias2<-mname
+  }
+  print(bias2)
+  summary(mRE[[bias2]])
+}
+```
+
+We can see that the slope of the adapted SE <code>sqrt(SMDSE_C)</code> = -1.2521 still shows non-significant (<code>t_value</code> = -0.6042 and <code>p-val</code> = 0.5548), which indicates the robustness of the small-study test.
+
+# Sensitivity
+
+## Rho range
+
+```{r}
+if (VCVrho != 0){
+  
+  rho_range <- c(0, 0.25, 0.5, 0.75, 0.9) # assume a range values of rho
+  
+  for (j in 1:length(rho_range)) {
+    
+    mname <- paste("rho", rho_range[j],sep = "_")
+    
+    VCV2 <- vcalc(vi, cluster = interaction(df$EScluster,df$Study), obs = ESid, data = df, rho = rho_range[j])
+    
+    mRE[[mname]] <- rma.mv(yi, VCV2,random = RE_formula[[outcome]],
+                                   data=df,slab = Study, method="REML",test="t", 
+                                   dfs="contain", level=95)
+    mRE[[mname]] <- robust(mRE[[mname]], cluster = df$Study, clubSandwich = TRUE)
+    mRE[[mname]] <- additional_results(mRE[[mname]])
+  }
+}
+```
+
+## Leave one out + Rho range
+
+```{r}
+if (VCVrho != 0){rho_range <- c(0.25, 0.5, 0.75, 0.9)} else {rho_range <-0}
+
+for (i in sort(unique(df$Study))) {
+  
+  df_temp <- df[df$Study != i, ]
+  
+  for (j in 1:length(rho_range)) {
+    
+    mname <- paste("rho", rho_range[j],"l1o", i,sep = "_")
+    print(mname)
+    VCV2 <- vcalc(vi, cluster = interaction(df_temp$EScluster,df_temp$Study), obs = ESid, data = df_temp, rho = rho_range[j])
+    
+    mRE[[mname]] <- rma.mv(yi, VCV2,random = RE_formula[[outcome]],
+                         data=df_temp,slab = Study, method="REML",test="t", 
+                         dfs="contain", level=95)
+    mRE[[mname]] <- robust(mRE[[mname]], cluster = df_temp$Study, clubSandwich = TRUE)
+    mRE[[mname]] <- additional_results(mRE[[mname]])
+  }}
+```
+
+## Influential cases
+
+> Outliers and influential cases can actually reveal patterns that may lead to new insights about study characteristics that could be acting as potential moderators [@viechtbauer2010]
+
+Cook’s distance: examine what effect the deletion of the ith study has on the fitted values of all k studies simultaneously
+
+DFBETAS: directly examine the influence of deleting the ith case on each individual parameter estimate
+
+[@viechtbauer2010]
+
+```{r}
+# measure residuals
+ic_distance <-cooks.distance(mRE[["ML_RobVar"]], cluster=df$Study)
+
+########## Not available for robust rma: ###########
+ic_rstudent <- rstudent(mRE[["ML_REML"]], 2, progbar=FALSE, cluster=df$Study, reestimate=TRUE) 
+
+ic_dfbetas <-dfbetas(mRE[["ML_REML"]], cluster=df$Study)
+
+# measures leverage 
+ic_hatvalues <-hatvalues(mRE[["ML_REML"]],cluster=df$Study) # not clustered
+names(ic_hatvalues)<-df$Study
+# mean hat values for each Study
+ic_hatcluster <- tapply(ic_hatvalues, names(ic_hatvalues), mean)
+####################################################
+
+# to chech order of all data
+# cbind(names(ic_hatcluster),names(ic_distance),row.names(ic_dfbetas),as.character(ic_rstudent$cluster$slab))
+
+# plots
+point_size <- ic_distance*15
+
+study_id_map <- setNames(df$StudyID, df$Study)
+study_id_seq <- study_id_map[names(ic_distance)]
+
+par(mfrow = c(2,2))
+
+x<- seq_along(ic_distance)
+y<- ic_distance
+threshold <- 4/length(ic_distance) # Limite comum de influência
+inf_cases_distance <- ic_distance >  threshold
+
+plot(x,y, pch = 19, cex = point_size, col = ifelse(inf_cases_distance,"red", "black"),
+     xlab = "Study * EScluster", ylab = "Cook's Distance", main = "Influencial studies")
+abline(h = threshold, col = "red", lty = 2)  
+text(x[inf_cases_distance], y[inf_cases_distance], labels = study_id_seq[inf_cases_distance], pos = 2, cex = 0.7, col = "blue")
+
+
+y<- ic_dfbetas[,1]
+threshold <- c(-2, 2) / sqrt(nrow(ic_dfbetas))
+inf_cases_dfbetas <- abs(ic_dfbetas) > threshold[2]
+
+plot(x,y, pch = 19, cex = point_size,col = ifelse(inf_cases_dfbetas, "red", "black"),
+     xlab = "Study ID", ylab = "DFBetas", main = "Influential studies (DFBetas)")
+abline(h = threshold, col = "red", lty = 2)
+text(x[inf_cases_dfbetas], y[inf_cases_dfbetas], labels = study_id_seq[inf_cases_dfbetas], pos = 2, cex = 0.7, col = "blue")
+
+
+y<- ic_rstudent$cluster$X2
+threshold <- 2*c(-1, 1) # Resíduos >2 ou <-2 são suspeitos
+inf_cases <- abs(ic_rstudent$cluster$X2) > threshold[2]
+
+plot(x,y, pch = 19, cex = point_size, col = ifelse(inf_cases, "red", "black"), 
+     xlab = "Study ID", ylab = "Studentized Deleted Residuals", main = "Outliers")
+abline(h = threshold, col = "red", lty = 2)
+text(x[inf_cases], y[inf_cases], labels = study_id_seq[inf_cases], pos = 2, cex = 0.7, col = "blue")
+
+
+y<- ic_hatcluster
+threshold <- 2*mean(ic_hatcluster) # Limite usual para pontos influentes
+inf_cases_hat <-ic_hatcluster >  threshold 
+
+plot(x,y, pch = 19, cex = point_size, col = ifelse(inf_cases_hat, "red", "black"),
+     xlab = "Study ID", ylab = "Hat Values", main = "Influential variance studies")
+abline(h = threshold, col = "red", lty = 2)  
+text(x[inf_cases_hat], y[inf_cases_hat], labels = study_id_seq[inf_cases_hat], pos = 2, cex = 0.7, col = "blue")
+
+
+par(mfrow = c(1,2))
+
+x<- ic_distance
+y<- ic_rstudent$cluster$X2
+plot(x,y, pch = 19, col = ifelse(inf_cases_distance, "red", "black"), cex = point_size, xlab="Studies Cook's Distance", ylab="Studentized Deleted Residual")
+text(x[inf_cases_distance], y[inf_cases_distance], labels = study_id_seq[inf_cases_distance], pos = 2, cex = 0.7, col = "blue")
+
+x<- ic_hatcluster
+y<- ic_rstudent$cluster$X2
+plot(x,y, pch = 19, col = ifelse(inf_cases_hat, "red", "black"), cex = point_size, xlab="Studies mean hat value", ylab="Studentized Deleted Residual")
+text(x[inf_cases_hat], y[inf_cases_hat], labels = study_id_seq[inf_cases_hat], pos = 2, cex = 0.7, col = "blue")
+
+ggplot(df, aes(sample = yi, colour = StudyID)) +
+     stat_qq() +
+     stat_qq_line()+
+  labs(title = "Q-Q plot")
+
+ids <- study_id_seq[inf_cases]
+ggplot(df, aes(sample = yi, colour = StudyID %in% ids)) +
+     stat_qq() +
+     stat_qq_line()+
+  scale_colour_manual(values = c("FALSE" = "gray", "TRUE" = "red")) +
+  labs(title = "Q-Q plot",colour = "StudyID")
+```
+
+# Tables
+
+```{r}
+ t6 <- data.frame( "overall effect" = sapply(m, function(x) x$beta[[1]]),
+                   "standard error" = sapply(m, function(x) x$se[[1]]),
+                   "p-value"        = sapply(m, function(x) x$pval[[1]]),
+                   "Lower CI"       = sapply(m, function(x) x$ci.lb[[1]]),
+                   "Upper CI"       = sapply(m, function(x) x$ci.ub[[1]]),
+                   "Lower PI"       = sapply(m, function(x) x$pi$pi.lb[[1]]),
+                   "Upper PI"       = sapply(m, function(x) x$pi$pi.ub[[1]]))
+  
+  colnames(t6) <- c("Overall effect (pooled SMD)", "Standard error", "p-value", "Lower CI", "Upper CI","Lower PI","Upper PI")
+  
+  t6 %>% kable(digits=c(2,1,4,2,2))
+```
+
+```{r}
+df$Influential_Distance <- as.integer(df$Study %in% names(ic_distance[inf_cases_distance]))
+df$Influential_DFBetas <- as.integer(df$Study %in% names(ic_dfbetas[rowSums(inf_cases_dfbetas) > 0, ]))
+df$Influential_Hat <- as.integer(df$Study %in% names(ic_hatcluster[inf_cases_hat]))
+df$Outlier <- as.integer(df$Study %in% names(ic_rstudent$cluster$X2[inf_cases]))
+```
+
+# Multilevel meta-regression
+
+SYRCLE PROTOCOL: Meta-regression will be used for outcomes with at least 10 experiments.
+
+> The minimal number of studies or effect sizes required by a multilevel meta-regression remains unknown, albeit some simulation studies suggest that the estimates of model coefficients of a multilevel meta-regression are generally stable under various simulated situations.[@yang2023] ... the complexity of parameterization of such a meta-regression requires a large dataset to make optimization algorithms free of convergence issues.[@yang2023]
+
+```{r,title="Multicolinearity" eval=FALSE, include=FALSE, r,title="Multicolinearity"}
+df.MR <- select(df, c("Year", "Study", "EScluster", "ESid","DevelopmentalStage",
+                      "ExposureDurationDays","ParticleSizeMean",
+                      "Concentration_mg_L","yi", "vi"))
+df.MR<- df.MR[complete.cases(df.MR),]
+
+ggpairs(df.MR,
+        mapping = aes(color = DevelopmentalStage, alpha = 0.3),
+        columns = 6:10,
+        title = "") +
+  theme(legend.position = "under")
+```
+
+## Meta-regression model
+
+```{r}
+mnames<-c("Dev. Stage","Full","Choosen","Reduced")
+# specify moderators formula
+mods_formulas = list(formula(~ DevelopmentalStage), #Developmental Stage only
+
+                    formula(~ (ParticleSizeMean + ExposureDurationDays + 
+                               Concentration_mg_L)*(DevelopmentalStage)), #full model
+                  
+                     formula(~ ParticleSizeMean
+                             + Concentration_mg_L 
+                             + ExposureDurationDays*DevelopmentalStage), #choosen model
+
+                     formula(~ ParticleSizeMean
+                             + ExposureDurationDays*DevelopmentalStage)) #reduced model
+
+df.MR <- select(df, c("Year", "Study", "EScluster", "ESid","DevelopmentalStage",
+                      "ExposureDurationDays","ParticleSizeMean",
+                      "Concentration_mg_L","yi", "vi"))
+
+mname <- mnames[j]
+mods_formula <- mods_formulas[[j]]
+
+m.MR[[mname]] <- rma.mv(yi, VCV,random = RE_formula[[outcome]], mods= mods_formula,
+                 data=df.MR,slab = Study, method="REML",test="t",
+                 dfs="contain", level=95) #it will only keep complete cases
+
+nSt_MR <- m.MR[[mname]]$s.nlevels[1] # number of studies
+nEC_MR <- m.MR[[mname]]$s.nlevels[2] # number of ESclusters
+nES_MR <- m.MR[[mname]]$s.nlevels[3] # number of independent ES
+
+print(paste0("Number of studies: ",nSt_MR,
+            ", number of ES clusters: ",nEC_MR,
+            " and number of independent observations of ES: ",nES_MR))
+
+pred<-predict(m.MR[[mname]])
+resid<-rstandard(m.MR[[mname]])
+plot(pred$pred,resid$resid)
+abline(h = 0, col = "black", lty = 2)
+
+m.MR[[mname]] <- robust(m.MR[[mname]], cluster = df.MR$Study, clubSandwich = TRUE,verbose=TRUE)
+m.MR[[mname]] <- additional_results(m.MR[[mname]])
+```
+
+The meta-regression comprised `r nES` comparisons from `r nEC` control group clusters of `r nSt` independent studies, so the random formula for `r outcome` was `r paste(deparse(RE_formula[[outcome]]))`.
+
+No difference between treatment and control groups (ES = `r beta` ± `r se`, CI95% = `r ci.lb` to `r ci.ub`, predicted interval `r pi.lb` to `r pi.ub`), with high heterogeneity (i² = `r I2_Total`, Q = `r QE`, p `r QEp` ) and variance explained by each component of `r sigma2`.
+
+```{r}
+# Making a proportional stacked density plot
+ggplot(df.MR, aes(yi)) +
+  geom_density(
+    aes(
+      colour = DevelopmentalStage,
+      fill = after_scale(alpha(colour, 0.3)),
+      y = after_stat(count / sum(n[!duplicated(group)]))
+    ),
+    position = "stack", bw = 1
+  ) +
+  geom_density(bw = 1)
+
+# Imitating a ridgeline plot
+ggplot(df.MR, aes(yi, colour = DevelopmentalStage)) +
+  geom_ribbon(
+    stat = "density", outline.type = "upper",
+    aes(
+      fill = after_scale(alpha(colour, 0.3)),
+      ymin = after_stat(group),
+      ymax = after_stat(group + ndensity)
+    )
+  )
+```
+
+# Referências
+
+```{r}
+# Referências
+```

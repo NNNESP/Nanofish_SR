@@ -53,6 +53,7 @@ set_plot_dimensions <- function(width_choice, height_choice) {
 
 
 
+
 ### Forest for REmodel and null model
 forest_plot <- function(model,outcome,modelID){
   devstage_list = as.character(unique(model$data$DevelopmentalStage))
@@ -154,3 +155,9 @@ orchardRE_model <- function(model,outcome,I_yposition,heterogeneity){
              label= info, parse = TRUE)+
     scale_fill_manual(values="grey") +
     scale_colour_manual(values="grey")}
+
+### Orchard plot for mixed model
+orchard_mixed_model <- function(model,outcome,I_yposition,heterogeneity){
+  
+  orchard_plot(model, group = "Study", mod = 1,"DevelopmentalStage", xlab = "Standardised mean difference", 
+               transfm = "none")}

@@ -218,7 +218,11 @@ mRF$StudyClusterStudyIDExpID[[outcome]] <- rma.mv(yi, vi,
             method="ML")
 }
 rm("df")
+```
 
+## Table of results: Likelihood ratio tests
+
+```{r, echo=TRUE}
 # Inspect Results
 ## create table of results
 columns = c("LRT1","pval1","LRT2","pval2","LRT3","pval3","LRT4","pval4",
@@ -245,12 +249,9 @@ rst_tbl_RF[outcome,] = round(c( anova$ExpID_null$LRT,           anova$ExpID_null
                                 anova$StudyIDExpID_StudyID$LRT, anova$StudyIDExpID_StudyID$pval,
                                 anova$StudyIDExpID_Cluster$LRT, anova$StudyIDExpID_Cluster$pval,
                                 anova$Full_StudyIDExpID$LRT,    anova$Full_StudyIDExpID$pval),3)}
+
 rst_tbl_RF = cbind(outcomeslist,rst_tbl_RF)
-```
 
-## Table of results: Likelihood ratio tests
-
-```{r, echo=TRUE}
 gt_tbl <-
   gt(rst_tbl_RF,rowname_col = "Outcome",) |>
   tab_spanner(label = "Exp. vs Null",         columns = c("LRT1", "pval1")) |>
@@ -280,16 +281,17 @@ gt_tbl
 ```
 
 **Hypothesis 1:** the SMD is homogeneous among all levels of experiment,
-study or research cluster For Predatory performance any parameter does
-not fit the data significantly better than the null model. For all other
-variables SMD varies significantly at least among studies or experiment
-and one new term should be added in the model to account for this
-variability.
+study or research cluster.
+
+For Predatory performance any parameter does not fit the data
+significantly better than the null model. For all other variables SMD
+varies significantly at least among studies or experiment and one new
+term should be added in the model to account for this variability.
 
 **Hypothesis 2:** the SMD is homogeneous among all levels of Study +
 Experiment when at least one new parameter (experiment, study or
 research cluster) if a) Experiment ID, b) Study or c) Research Cluster
-is considered
+is considered.
 
 a)  Study + Experiment ID does not fit the data significantly better
     than the only Experiment ID model for GSH content, Motor function:
@@ -309,10 +311,12 @@ variables when compared to a two level model (Study + Experiment ID).
 So, for almost all variables (except Predatory performance) the Study is
 an important random factor.
 
-Hypothesis 3: the SMD is homogeneous among all levels of Study +
+**Hypothesis 3:** the SMD is homogeneous among all levels of Study +
 Experiment + Research Cluster if variability due to Study + Experiment
-ID is already included The tree level model does not fit the data
-significantly better than the two level for any of the variables.
+ID is already included.
+
+The tree level model does not fit the data significantly better than the
+two level for any of the variables.
 
 Even so, one must consider the assumptions behind the decision to
 include or exclude one random variable: the presence of correlated data.
@@ -498,6 +502,20 @@ all variables were included.
 ## Random Effects formula for each variable
 
 ```{r, echo=TRUE}
+random_factors = list(formula(~1 | Study/EScluster),    # n_outcome = 1,
+                      formula(~1 | Study),              # n_outcome = 2,
+                      formula(~1 | Study/EScluster),    # n_outcome = 3,
+                      formula(~1 | Study),              # n_outcome = 4,
+                      formula(~1 | Study),              # n_outcome = 5,
+                      formula(~1 | Study),              # n_outcome = 6,
+                      formula(~1 | Study),              # n_outcome = 7, 
+                      formula(~1 | Study),              # n_outcome = 8,
+                      formula(~1 | Study),              # n_outcome = 9,
+                      formula(~1 | Study/EScluster),    # n_outcome = 10,
+                      formula(~1 | Study),              # n_outcome = 11, (null model)
+                      formula(~1 | Study),              # n_outcome = 12,
+                      formula(~1 | Study))              # n_outcome = 13
+
 random_factors = list(formula(~1 | Study/EScluster),              # n_outcome = 1,
                       formula(~1 | Study/EScluster),              # n_outcome = 2,
                       formula(~1 | Study/EScluster),              # n_outcome = 3,
@@ -511,6 +529,7 @@ random_factors = list(formula(~1 | Study/EScluster),              # n_outcome = 
                       formula(~1 | Study/EScluster),              # n_outcome = 11,
                       formula(~1 | Study),                        # n_outcome = 12,
                       formula(~1 | Study))                        # n_outcome = 13
+
 names(random_factors) <- outcomeslist
 # - = change of model not recommended 
 # Study = can be a Study only analysis
@@ -520,7 +539,7 @@ names(random_factors) <- outcomeslist
 ```{r}
 # Create variable to store random effects with robust variance estimation models
 m1 = vector("list",5)
-names(m1) <- c("null","forest","random_effects","rob_random_effects","metaCART")
+names(m1) <- c("null_REML","RE_REML","RERV_REML","metaCART","MIXED_REML")
 
 rows = c("k estimates","N studies","ES","SE","ci.lb","ci.ub","pi.lb","pi.ub","I² total","sigma²Study","sigma²ES cluster","Q","Q p-value")
 predicted_intervals = data.frame(matrix(nrow=length(rows), ncol=length(outcomeslist)))
@@ -537,14 +556,14 @@ for(outcome in outcomeslist)
   
   
   # fit null model with REML
-  m1$null[[outcome]] <- rma.mv(yi, vi,
+  m1$null_REML[[outcome]] <- rma.mv(yi, vi,
               data=df, 
               slab = Study,
               method="REML",  
               test="t", dfs="contain", level=95)
   
   # fit multilevel model with appropriate fixed/random effects
-  m1$random_effects[[outcome]] <- rma.mv(yi, vi,
+  m1$RE_REML[[outcome]] <- rma.mv(yi, vi,
               random = random_factors[[outcome]],
               data=df, 
               slab = Study,
@@ -552,44 +571,52 @@ for(outcome in outcomeslist)
               test="t", dfs="contain", level=95)
   
   # apply cluster-robust inference methods (robust variance estimation) using the improved methods from the clubSandwich package
-   m1$rob_random_effects[[outcome]] <- robust(m1$random_effects[[outcome]], 
-              cluster = m1$random_effects[[outcome]]$mf.r[[1]][,1], clubSandwich = TRUE)
+   m1$RERV_REML[[outcome]] <- robust(m1$RE_REML[[outcome]], cluster = Study, clubSandwich = TRUE)
 
  # Heterogeneity
- heterogeneity[[outcome]]$i2= round(i2_ml(m1$rob_random_effects[[outcome]]),2)
- heterogeneity[[outcome]]$sigma2= round(m1$rob_random_effects[[outcome]]$sigma2,2)
+ heterogeneity[[outcome]]$i2     = round(i2_ml(m1$RERV_REML[[outcome]]),2)
+ heterogeneity[[outcome]]$sigma2 = round(m1$RERV_REML[[outcome]]$sigma2,2)
   
   # compute predicted outcomes (with corresponding CIs) as needed
-  pi <- predict(m1$rob_random_effects[[outcome]])
+  pi <- predict(m1$RERV_REML[[outcome]])
   
   if (length(heterogeneity[[outcome]]$sigma2)==1)
   {heterogeneity[[outcome]]$sigma2[[2]]=NA}
   
-  predicted_intervals[[outcome]] <- round(c(m1$rob_random_effects[[outcome]]$k,
-                                             m1$rob_random_effects[[outcome]]$n,
+  predicted_intervals[[outcome]] <- round(c(m1$RERV_REML[[outcome]]$k,
+                                             m1$RERV_REML[[outcome]]$n,
                                              pi$pred, pi$se, pi$ci.lb, 
                                              pi$ci.ub, pi$pi.lb, pi$pi.ub, 
                                              heterogeneity[[outcome]]$i2[[1]],
                                              heterogeneity[[outcome]]$sigma2[[1]],
                                              heterogeneity[[outcome]]$sigma2[[2]],
-                                             m1$rob_random_effects[[outcome]]$QE,
-                                             m1$rob_random_effects[[outcome]]$QEp
-                                             ),2)
+                                             m1$RERV_REML[[outcome]]$QE,
+                                             m1$RERV_REML[[outcome]]$QEp
+                                             ),3)
   
   # test sets of coefficients / linear combinations as needed
   
   # anova(res_rob)
   
   # forest
-  m1$forest[[outcome]]<-forest_plot(m1$rob_random_effects[[outcome]],outcome,"REmodel")
+  forest_plot(m1$RERV_REML[[outcome]],outcome,"RERV_REML_model")
 }
 
 predicted_intervals = cbind(rows,predicted_intervals)
 ```
 
+```{r}
+outcome <- outcomeslist[[3]]
+print(outcome)
+rbind(cbind('ES = ',    length(m1$null_REML[[outcome]]$data$EScluster)),
+cbind('ES cluster = ', length(unique(m1$null_REML[[outcome]]$data$EScluster))),
+cbind('Study = ',      length(unique(m1$null_REML[[outcome]]$data$Study))))
+```
+
 ## Results table
 
 ```{r}
+
 
 gt_tbl <-
   gt(predicted_intervals,rowname_col = "rows",) |>
@@ -603,10 +630,13 @@ gt_tbl <-
 #  tab_style(style = cell_text(align = "center"),
 #    locations = cells_column_labels(columns = 2:14))
 
-for (outcome in outcomeslist) {
-  gt_tbl <- gt_tbl |>
-    cols_label(!!outcome := sub(".*:\\s*","",outcome))
-}
+#for (outcome in outcomeslist) {
+#  gt_tbl <- gt_tbl |>
+#    cols_label(!!outcome := sub(".*:\\s*","",outcome))
+  
+#  i2 <- var.comp(m1$RERV_REML[[outcome]])
+#  plot(i2)
+#}
 
 gt_tbl 
 ```
@@ -629,9 +659,9 @@ names(I_yposition)=outcomeslist
 
 for(outcome in outcomeslist)
 { 
-  pdf(file=paste('Figures/Orchard plot_',str_replace(outcome,':','_'),"_",'REmodel','.pdf',sep=""),paper="A4")
+  pdf(file=paste('Figures/Orchard plot_',str_replace(outcome,':','_'),"_",'RERV_model','.pdf',sep=""),paper="A4")
   
-  print(orchardRE_model(m1$rob_random_effects[[outcome]],outcome,I_yposition,heterogeneity[[outcome]]))
+  print(orchardRE_model(m1$RERV_REML[[outcome]],outcome,I_yposition,heterogeneity[[outcome]]))
   
   dev.off()
 }
@@ -686,7 +716,7 @@ for(outcome in outcomeslist2)
                                   lookahead = FALSE) # logical indicator to specify whether to apply the look-ahead strategy
   summary(m1$metaCART[[outcome]])
   
-  pdf(file=paste('Figures/metaCART_',str_replace(outcome,':','_'),"_",'REmodel','.pdf',sep=""),paper="A4")
+  pdf(file=paste('Figures/metaCART_',str_replace(outcome,':','_'),"_",'RE_RELM_model','.pdf',sep=""),paper="A4")
   print(plot(m1$metaCART[[outcome]]))
   dev.off()
 }
@@ -737,66 +767,80 @@ least 10 experiments.
 **choosed to evaluate**
 
 Multilevel models are sensitive to correlated variables, the chosen
-variables must be evaluated for multicollinearity.
-
-Kim, J.-S., & Frees, E. W. (2007). Multilevel modeling with correlated
+variables must be evaluated for multicollinearity. Kim, J.-S., & Frees,
+E. W. (2007). Multilevel modeling with correlated
 effects. *Psychometrika, 72*(4),
 505–533. [https://doi.org/10.1007/s11336-007-9008-1](https://psycnet.apa.org/doi/10.1007/s11336-007-9008-1)
 
-## Model
+## Mixed effects model
 
 ```{r}
 # “which moderators affect ES?” -> meta-regression model 
-model_mods = list(formula(~ ExposureDurationDays),
-                  formula(~ DevelopmentalStage-1),
-                  formula(~ ParticleSizeMean),
-                  formula(~ Concentration_mg_L),
-                  formula(~ ExposureDurationDays 
-                         + DevelopmentalStage-1 
-                         + ParticleSizeMean 
+outcomeslist3 <- outcomeslist[c(1:3,5:11)]
+number_of_elements<-list()
+# DROP: GSH content (9), Predatory Performance with concentration(10),
+#       Speed during feeding(5), Feeding time(5)
+
+model_mods = list(formula(~ ParticleSizeMean 
                          + Concentration_mg_L 
-                         + ExposureDurationDays*DevelopmentalStage
-                         + ExposureDurationDays*ParticleSizeMean
-                         + ExposureDurationDays*Concentration_mg_L
-                         + DevelopmentalStage*ParticleSizeMean
-                         + DevelopmentalStage*Concentration_mg_L
-                         + ParticleSizeMean*Concentration_mg_L))                        
+                         + ExposureDurationDays*DevelopmentalStage),
 
-m2 = vector("list",5)
-names(m2) <- c("mixed_exposure","mixed_develop","mixed_particlesize","mixed_concentration","mixed_2levels")
+                  formula(~ ParticleSizeMean
+                         + ExposureDurationDays*DevelopmentalStage))
 
-for(outcome in outcomeslist[[1]])
+for(outcome in outcomeslist3)
   {
   # Select data
   df <- df_original[ which(df_original$Outcome==outcome ),]
   df <-df[order(df$DevelopmentalStage,-df$yi),]
-  df <- select(df, c("Year", "Study", "EScluster", "ExposureDurationDays", "DevelopmentalStage", "ParticleSizeMean", "Concentration_mg_L","yi", "vi"))
+  df <- select(df, c("Year", "Study", "EScluster", "ExposureDurationDays",
+                "DevelopmentalStage", "ParticleSizeMean", "Concentration_mg_L","yi", "vi"))
   df<- df[complete.cases(df),]
   
-  # fit multilevel model with appropriate fixed and random effects
-  m2$mixed[[outcome]] <- rma.mv(yi, vi,
-              random = random_factors[[outcome]],
-              mods = model_mods,
-              data=df, 
-              slab = Study,
-              method="REML",  
-              test="t", dfs="contain", level=95)
+  number_of_elements[[outcome]] <- rbind(cbind('ES = ',    length(df$yi)),
+    cbind('ES cluster = ', length(unique(df$EScluster))),
+    cbind('Study = ',      length(unique(df$Study))))
   
-   #Goodness-of-fit index
-  r2[[n_outcome]] <- r2_ml(res.meta)
+  # fit multilevel model with appropriate fixed and random effects
+ if (outcomeslist3[[10]]==outcome ){
+  m1$MIXED_REML[[outcome]] <- rma.mv(yi, vi,random = random_factors[[outcome]],    
+                      mods = model_mods[[2]], # without concentration
+                      data=df,slab = Study,method="REML",test="t", dfs="contain", level=95)
+  }
+  else {
+  m1$MIXED_REML[[outcome]] <- rma.mv(yi, vi,random = random_factors[[outcome]],    
+                      mods = model_mods[[1]],
+                      data=df,slab = Study,method="REML",test="t", dfs="contain", level=95)
+  }
+
 }
+  
 ```
 
-Fixed effects structure for each outcome
+```{r}
+outcome <- outcomeslist3[[5]]
+print(outcome)
+ number_of_elements[outcome]
+
+m1$MIXED_REML[[outcome]]
+
+i2_ml(m1$MIXED_REML[[outcome]])
+
+#Goodness-of-fit index
+r2_ml(m1$MIXED_REML[[outcome]])
+```
 
 ```{r}
-for(outcome in outcomeslist)
-{
-  if (outcomeslist[[12]]==outcome || outcomeslist[[13]]==outcome)
-    {m$random_effects[[outcome]] <- mRF$StudyID[[outcome]]  }
-  else
-    {m$random_effects[[outcome]] <- mRF$StudyIDExpID[[outcome]]  }
-}
+m2 <-m2$mixed_2levels[[outcome]]
+coef(summary(m2))
+confint.rma
+```
+
+## Subgroups orchard plots
+
+```{r}
+model<-m2$mixed_exposure[[outcome]]
+orchard_plot(model, group = "Study", mod = "ExposureDurationDays", xlab = "ES")
 ```
 
 ```{r}
@@ -914,8 +958,14 @@ for(outcome in outcomeslist)
 { 
   pdf(file=paste('Figures/Orchard plot_',str_replace(outcome,':','_'),"_",'REmodel','.pdf',sep=""),paper="A4")
   
-  print(orchardRE_model(m1$rob_random_effects[[outcome]],outcome,I_yposition,heterogeneity[[outcome]]))
+  print(orchardRE_model(m1$RERV_REML[[outcome]],outcome,I_yposition,heterogeneity[[outcome]]))
   
   dev.off()
 }
+```
+
+# Subgroup analysis
+
+```{r}
+#Speed during feeding, Feeding time
 ```
