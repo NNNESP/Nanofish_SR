@@ -14,14 +14,20 @@ bibliography: references.bib
 -   Viechtbauer, W. (2010). Conducting meta-analyses in R with the metafor package. *Journal of Statistical Software, 36*(3), 1–48. <https://doi.org/10.18637/jss.v036.i03>
 -   Nakagawa, S., Lagisz, M., Jennions, M. D., Koricheva, J., Noble, D. W. A., Parker, T. H., Sánchez-Tójar, A., Yang, Y., & O'Dea, R. E. (2022). Methods for testing publication bias in ecological and evolutionary meta-analyses. *Methods in Ecology and Evolution*, 13, 4–21. [https://doi.org/10.1111/2041-210X.13724](#0)
 -   Stanley, T. D. (2017). Limitations of PET-PEESE and Other Meta-Analysis Methods. *Social Psychological and Personality Science*, *8*(5), 581-591. <https://doi.org/10.1177/1948550617693062>
--   Nakagawa, S., Lagisz, M., O’Dea, R. E., Rutkowska, J., Yang, Y., Noble, D. W., & Senior, A. M. (2021). The Orchard Plot: Cultivating Forest Plots for Use in Ecology, Evolution and Beyond. **Research Synthesis Methods**, 12: 4-12, https://doi.org/10.1002/jrsm.1424 (preprint = *EcoEvoRxiv* https://doi.org/10.32942/osf.io/epqa7)
+-   Nakagawa, S., Lagisz, M., O’Dea, R. E., Rutkowska, J., Yang, Y., Noble, D. W., & Senior, A. M. (2021). The Orchard Plot: Cultivating Forest Plots for Use in Ecology, Evolution and Beyond. **Research Synthesis Methods**, 12: 4-12, <https://doi.org/10.1002/jrsm.1424> (preprint = *EcoEvoRxiv* <https://doi.org/10.32942/osf.io/epqa7>)
 -   Harrer, M., Cuijpers, P., Furukawa, T.A., & Ebert, D.D. (2021). *Doing Meta-Analysis with R: A Hands-On Guide*. Boca Raton, FL and London: Chapman & Hall/CRC Press. ISBN 978-0-367-61007-4
 
 # Load libraries
 
-```{r global options, echo=TRUE, warning=FALSE, cache=FALSE}
-library(knitr)
-library(rmdformats)
+```{r global options, warning=FALSE, cache=FALSE, include=FALSE}
+pacman::p_load(knitr,
+               rmdformats,
+               metafor,
+               dplyr,
+               ggalluvial,
+               orchaRd,
+               GGally,
+               patchwork)
 
 ## Global options~çjk
 knitr::opts_chunk$set(
@@ -29,14 +35,6 @@ knitr::opts_chunk$set(
   tidy = TRUE, comment = NA,
   message = FALSE, warning = FALSE
 )
-
-pacman::p_load(metafor,
-               dplyr,
-               ggalluvial,
-               orchaRd,
-               GGally,
-               patchwork)
-
 ```
 
 # Load functions
@@ -83,7 +81,7 @@ additional_results <- function(m) {
 
 # Load data
 
-```{r Load data, echo=TRUE}
+```{r Load data, include=FALSE}
 
 file <- "mvMetaAnalysis.csv"
 
@@ -203,13 +201,13 @@ print(outcome)
 > Before running any meta-analytic model, it is important to explore the meta-analytic dataset to search for potential outliers that could represent data extraction errors. [@nakagawa2022]
 
 ```{r}
-p1<-funnel(df$yi, df$vi, yaxis="sei",
-       #xlim = c(-3, 3),
-       xlab = "Effect size (Zr)", digits = 2, las = 1) 
-p2<-funnel(df$yi, df$vi, yaxis="seinv",
-       #xlim = c(-3, 3),
+
+par(mfrow = c(1, 2))
+funnel(df$yi, df$vi, yaxis="sei",label="out",
+       xlab = "Effect size (Zr)", digits = 2, las = 1,
+      pch= 19, col = as.factor(df$Study))
+funnel(df$yi, df$vi, yaxis="seinv",label="out",
        xlab = "Effect size (Zr)",  digits = 2, las = 1) 
-p1+p2
 ```
 
 ## Alluvial plot
