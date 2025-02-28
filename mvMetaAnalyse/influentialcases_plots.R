@@ -1,4 +1,5 @@
 influentialcases_plots <- function(m,mname2,mname1,size_factor) {
+  df<-m[[mname2]]$data
   
   # measure residuals
   ic_distance <-cooks.distance(m[[mname2]], cluster=df$Study)
@@ -13,7 +14,6 @@ influentialcases_plots <- function(m,mname2,mname1,size_factor) {
   
   study_id_map <- setNames(df$StudyID, df$Study)
   study_id_seq <- study_id_map[names(ic_distance)]
-  size_factor <- 0.01
   
   threshold_cook <- 4 / length(ic_distance)
   threshold_out <- 2
