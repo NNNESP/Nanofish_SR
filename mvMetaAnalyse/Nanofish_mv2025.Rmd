@@ -166,7 +166,7 @@ colormap <-c("Embrio" = "khaki",
             "ParticleSizeMean"= "chartreuse4",
             "Concentration_mg_L"= "chocolate4",
             "Publication year"="black",
-            "Variance"="red")
+            "Variance"="navyblue")
 ```
 
 # Calculate Effect Size
@@ -368,7 +368,8 @@ mRE[[mname2]] <- robust(mRE[[mname1]], cluster = df$Study, clubSandwich = TRUE)
 
 mRE[[mname2]] <- additional_results(mRE[[mname2]])
 
-I2_ML_RobVar <- i2_ml(mRE[[mname2]], boot = 1000)
+I2_ML_RobVar <- i2_ml(mRE[[mname2]])
+#I2_ML_RobVar <- i2_ml(mRE[[mname2]], boot = 1000)
 
 extract_report(mRE[[mname2]], outcome, RE_formula)
 ```
@@ -378,6 +379,7 @@ extract_report(mRE[[mname2]], outcome, RE_formula)
 ```{r echo=FALSE}
 summary(mRE[[mname2]])
 I2_ML_RobVar
+var.comp(mRE[[mname1]])
 diagnostic_plots(mRE[[mname2]])
 ```
 
@@ -502,7 +504,7 @@ if (mRE[[bias]]$pval[2]<0.05){
 }
 ```
 
-We can see that the slope of the adapted SE <code>sqrt(SMDSE_C)</code> = -1.2521 still shows non-significant (<code>t_value</code> = -0.6042 and <code>p-val</code> = 0.5548), which indicates the robustness of the small-study test.
+If the results are the same, indicates the robustness of the small-study test.
 
 #### Plots
 
@@ -529,7 +531,7 @@ print(plot_timelagbias + plot_smallstudybias)
 ```{r echo=TRUE}
 if (VCVrho != 0){
   
-  rho_range <- c(0, 0.25, 0.5, 0.75, 0.9) # assume a range values of rho
+  rho_range <- c(0, 0.25, 0.75, 0.9) # assume a range values of rho
   
   for (j in 1:length(rho_range)) {
     
@@ -589,18 +591,17 @@ m <- mRE
                   "I²Study"       = sapply(m, function(x) x$i2[[2]]),
                   "I²EScluster"   = sapply(m, function(x) x$i2[[3]]),
                   "I²ES"          = sapply(m, function(x) x$i2[[4]]),
-                  "σ²total"       = sapply(m, function(x) x$sigma2[[1]]),
-                  "σ²Study"       = sapply(m, function(x) x$sigma2[[2]]),
-                  "σ²EScluster"   = sapply(m, function(x) x$sigma2[[3]]),
-                  "σ²ES"          = sapply(m, function(x) x$sigma2[[4]]))
+                  "σ²Study"       = sapply(m, function(x) x$sigma2[[1]]),
+                  "σ²EScluster"   = sapply(m, function(x) x$sigma2[[2]]),
+                  "σ²ES"          = sapply(m, function(x) x$sigma2[[3]]))
   
  # colnames(t6) <- c("Overall effect (pooled SMD)", "Standard error", "p-value", "Lower CI", "Upper CI","Lower PI","Upper PI")
 
   
   t3 %>% kable(digits=c(0,0,0,2,1,4,2,2,2,2,2,2,2,2,2,2,2,2,2))
   
-  t4<-data.frame(sapply(mRF,  fitstats))
-rownames(t4) <-rownames(fitstats(mRF[[1]]))
+  t4<-data.frame(sapply(m,  fitstats))
+rownames(t4) <-rownames(fitstats(m[[1]]))
 DT::datatable(t4)
 ```
 
@@ -615,7 +616,7 @@ DFBETAS: directly examine the influence of deleting the ith case on each individ
 So if a point has high Cook's Distance, use DFBETAS to identify witch estimate is mainly influenced (only makes sense for meta regression).
 
 ```{r echo=TRUE}
-influentialcases_plots(mRE,"ML_RobVar"),"ML",0.01)
+influentialcases_plots(mRE,"ML_RobVar","ML",30)
 
 ```
 
@@ -670,6 +671,62 @@ summary(mMR[[mname2]])
 
 The meta-regression comprised `r nES_MR` comparisons from `r nEC_MR` control group clusters of `r nSt_MR` independent studies.
 
+#### Diagnostics plots
+
+```{r}
+mMR[["Reduced_RobVar"]]$fit.stats
+
+diagnostic_plots(mMR[["Reduced_RobVar"]])
+```
+
+#### Influential cases
+
+```{r warning=FALSE}
+mname1<-"Reduced"
+  mname2<-paste0(mname1,"_RobVar")
+influentialcases_plots(mMR,mname2,mname1,0.1)
+
+# measure residuals
+# ic_distance <-cooks.distance(mname2, cluster=df$Study)
+########## Not available for robust rma: ###########
+# ic_rstudent <- rstudent(mname1, 2, progbar=FALSE, cluster=df$Study, reestimate=TRUE) 
+# ic_dfbetas <-dfbetas(mname1, cluster=df$Study)
+```
+
+#### Orchard plots
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+m<-mMR[["Reduced_RobVar"]]
+
+# overall
+p1<-orchard_plot(m, mod = "1", xlab = "Effect size", group = "Study", k = TRUE, g = TRUE, transfm = "none", angle = 0,legend.pos = "top.out") + 
+  scale_x_discrete(labels = c("Overall effect")) +
+  scale_fill_manual(values = "#a0a2a3") +
+  scale_colour_manual(values = "#a0a2a3")
+
+# only Developmental Stage
+p2<-orchard_plot(m, mod = "DevelopmentalStage", xlab = "Effect size", group = "Study", k = TRUE, g = TRUE, transfm = "none", alpha = 0.5,legend.pos = "none")+
+  scale_color_manual(values = colormap)+
+  scale_fill_manual(values = colormap)
+
+p3<-bubble_plot(m, mod = "ExposureDurationDays", group = "Study", xlab = "Exposure Duration (Days)", alpha=0.5, k = TRUE, g = TRUE, transfm = "none",legend.pos = "none", colorby="ExposureDurationDays",colormap=colormap)
+
+p4<-bubble_plot(m, mod = "ExposureDurationDays", group = "Study", by = "DevelopmentalStage",  xlab = "Exposure Duration (Days)", alpha=0.5, k = TRUE, g = TRUE, transfm = "none",legend.pos = "none")+
+  aes(color = m$DevelopmentalStage)+
+  scale_color_manual(values = colormap)+
+  scale_fill_manual(values = colormap)
+
+p5<-bubble_plot(m, mod = "ParticleSizeMean", group = "Study", xlab = "Mean Particle Size", alpha=0.5, k = TRUE, g = TRUE, transfm = "none",legend.pos = "none",colorby="ParticleSizeMean",colormap=colormap)
+
+layout <- "  ABC
+             DEF
+             "
+  
+p1 + p2 + p4 + plot_spacer() + p5 + p3 + plot_layout(design = layout)
+
+#point estimate, confidence interval, prediction interval, 
+```
+
 ## Model 2: + Concentration
 
 ```{r echo=FALSE}
@@ -700,6 +757,68 @@ mMR[[mname2]] <- robust(mMR[[mname1]], cluster = df_MR$Study, clubSandwich = TRU
 mMR[[mname2]] <- additional_results(mMR[[mname2]])
 
 summary(mMR[[mname2]])
+```
+
+The meta-regression comprised `r nES_MR` comparisons from `r nEC_MR` control group clusters of `r nSt_MR` independent studies.
+
+#### Diagnostics plots
+
+```{r}
+mMR[["Basic_RobVar"]]$fit.stats
+
+diagnostic_plots(mMR[["Basic_RobVar"]])
+```
+
+#### Influential cases
+
+```{r warning=FALSE}
+mname1<-"Basic"
+  mname2<-paste0(mname1,"_RobVar")
+influentialcases_plots(mMR,mname2,mname1,0.05)
+
+# measure residuals
+#ic_distance <-cooks.distance(mname2, cluster=df$Study)
+########## Not available for robust rma: ###########
+#ic_rstudent <- rstudent(mname1, 2, progbar=FALSE, cluster=df$Study, reestimate=TRUE) 
+#ic_dfbetas <-dfbetas(mname1, cluster=df$Study)
+```
+
+#### Orchard plots
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+m<-mMR[["Basic_RobVar"]]
+
+# overall
+p1<-orchard_plot(m, mod = "1", xlab = "Effect size", group = "Study", k = TRUE, g = TRUE, transfm = "none", angle = 0,legend.pos = "top.out") + 
+  scale_x_discrete(labels = c("Overall effect")) +
+  scale_fill_manual(values = "#a0a2a3") +
+  scale_colour_manual(values = "#a0a2a3")
+
+# only Developmental Stage
+p2<-orchard_plot(m, mod = "DevelopmentalStage", xlab = "Effect size", group = "Study", k = TRUE, g = TRUE, transfm = "none", alpha = 0.5,legend.pos = "none")+
+  scale_color_manual(values = colormap)+
+  scale_fill_manual(values = colormap)
+
+p3<-bubble_plot(m, mod = "ExposureDurationDays", group = "Study", xlab = "Exposure Duration (Days)", alpha=0.5, k = TRUE, g = TRUE, transfm = "none",legend.pos = "none", colorby="ExposureDurationDays",colormap=colormap)
+
+p4<-bubble_plot(m, mod = "ExposureDurationDays", group = "Study", by = "DevelopmentalStage",  xlab = "Exposure Duration (Days)", alpha=0.5, k = TRUE, g = TRUE, transfm = "none",legend.pos = "none")+
+  aes(color = m$DevelopmentalStage)+
+  scale_color_manual(values = colormap)+
+  scale_fill_manual(values = colormap)
+
+p5<-bubble_plot(m, mod = "ParticleSizeMean", group = "Study", xlab = "Mean Particle Size", alpha=0.5, k = TRUE, g = TRUE, transfm = "none",legend.pos = "none",colorby="ParticleSizeMean",colormap=colormap)
+
+p6<-bubble_plot(m, mod = "Concentration_mg_L", group = "Study", xlab = "Concentration (mg/L)", alpha=0.5, k = TRUE, g = TRUE, transfm = "none",legend.pos = "none",colorby="Concentration_mg_L",colormap=colormap)
+
+#p7<-orchard_plot(m, mod = "ParticleMaterial", xlab = "Effect size", group = "Study", k = TRUE, g = TRUE, transfm = "none", alpha=0.5,colorby=df$DevelopmentalStage,colormap=colormap))
+
+
+layout <- "  ABC
+             DEF
+             "
+p1 + p2 + p4  + p6 + p5 + p3 + plot_layout(design = layout)
+
+#point estimate, confidence interval, prediction interval, 
 ```
 
 ## Model 3: + ParticleMaterial
@@ -735,17 +854,39 @@ mMR[[mname2]] <- additional_results(mMR[[mname2]])
 summary(mMR[[mname2]])
 ```
 
+The meta-regression comprised `r nES_MR` comparisons from `r nEC_MR` control group clusters of `r nSt_MR` independent studies.
+
+#### Diagnostics plots
+
+```{r}
+mMR[["Full_RobVar"]]$fit.stats
+
+diagnostic_plots(mMR[["Full_RobVar"]])
+```
+
+#### Influential cases
+
+```{r}
+mname1<-"Full"
+mname2<-paste0(mname1,"_RobVar")
+
+tryCatch({
+  influentialcases_plots(mMR,mname2,mname1,0.05)
+}, error = function(e) {
+  message("Erro capturado: ", e$message)
+})
+
+# measure residuals
+#ic_distance <-cooks.distance(mname2, cluster=df$Study)
+########## Not available for robust rma: ###########
+#ic_rstudent <- rstudent(mname1, 2, progbar=FALSE, cluster=df$Study, reestimate=TRUE) 
+#ic_dfbetas <-dfbetas(mname1, cluster=df$Study)
+```
+
 #### Orchard plots
 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
-#m<-mMR[["Reduced_RobVar"]]
-m<-mMR[["Basic_RobVar"]]
-#m<-mMR[["Full_RobVar"]]
-
-df<-m$data
-if (!is.null(m$formula.mods)) {
-    df<- df[complete.cases(df),]
-  }
+m<-mMR[["Full_RobVar"]]
 
 # overall
 p1<-orchard_plot(m, mod = "1", xlab = "Effect size", group = "Study", k = TRUE, g = TRUE, transfm = "none", angle = 0,legend.pos = "top.out") + 
@@ -769,74 +910,18 @@ p5<-bubble_plot(m, mod = "ParticleSizeMean", group = "Study", xlab = "Mean Parti
 
 p6<-bubble_plot(m, mod = "Concentration_mg_L", group = "Study", xlab = "Concentration (mg/L)", alpha=0.5, k = TRUE, g = TRUE, transfm = "none",legend.pos = "none",colorby="Concentration_mg_L",colormap=colormap)
 
-#p7<-orchard_plot(m, mod = "ParticleMaterial", xlab = "Effect size", group = "Study", k = TRUE, g = TRUE, transfm = "none", alpha=0.5,colorby=df$DevelopmentalStage,colormap=colormap))
-
+p7<-orchard_plot(m, mod = "ParticleMaterial", xlab = "Effect size", group = "Study", k = TRUE, g = TRUE, transfm = "none", alpha=0.5,legend.pos = "bottom.out")+
+  scale_color_manual(values = colormap)+
+  scale_fill_manual(values = colormap)
 
 layout <- "  ABC
              DEF
              "
   
 p1 + p2 + p4  + p6 + p5 + p3 + plot_layout(design = layout)
-#p7
+p7
 
 #point estimate, confidence interval, prediction interval, 
-```
-
-#### Extra plots
-
-```{r}
-# Making a proportional stacked density plot
-ggplot(df_MR, aes(yi)) +
-  geom_density(
-    aes(
-      colour = DevelopmentalStage,
-      fill = after_scale(alpha(colour, 0.3)),
-      y = after_stat(count / sum(n[!duplicated(group)]))
-    ),
-    position = "stack", bw = 1
-  ) +
-  geom_density(bw = 1)
-
-# Imitating a ridgeline plot
-ggplot(df.MR, aes(yi, colour = DevelopmentalStage)) +
-  geom_ribbon(
-    stat = "density", outline.type = "upper",
-    aes(
-      fill = after_scale(alpha(colour, 0.3)),
-      ymin = after_stat(group),
-      ymax = after_stat(group + ndensity)
-    )
-  )
-
-
-
-```
-
-#### Diagnostics plots
-
-```{r}
-mMR[["Reduced_RobVar"]]$fit.stats
-mMR[["Basic_RobVar"]]$fit.stats
-#mMR[["Full_RobVar"]]$fit.stats
-
-diagnostic_plots(mMR[["Reduced_RobVar"]])
-diagnostic_plots(mMR[["Basic_RobVar"]])
-#diagnostic_plots(mMR[["Full_RobVar"]])
-```
-
-#### Influential cases
-
-```{r}
-# Reduced, Basic, Full
-mname1<-"Basic"
-  mname2<-paste0(mname1,"_RobVar")
-influentialcases_plots(mMR,mname2,mname1,0.05)
-
-# measure residuals
-ic_distance <-cooks.distance(mname2, cluster=df$Study)
-########## Not available for robust rma: ###########
-ic_rstudent <- rstudent(mname1, 2, progbar=FALSE, cluster=df$Study, reestimate=TRUE) 
-ic_dfbetas <-dfbetas(mname1, cluster=df$Study)
 ```
 
 # Referências
