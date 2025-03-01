@@ -28,7 +28,7 @@ influentialcases_plots <- function(m,mname2,mname1,size_factor) {
   )
   
   p1 <- ggplot(df_ic, aes(x = StudentizedResiduals, y = Study, color = Outlier)) +
-    geom_point(size = size_factor) +
+    geom_point(size = df_ic$CookDistance * size_factor) +
     scale_color_manual(values = c("FALSE" = "black", "TRUE" = "#A6CEE3")) + 
     geom_vline(xintercept = c(-1, 1)*threshold_out, linetype = "dashed", color = "red") +
     #geom_text(aes(label = ifelse(Outlier, StudyID, "")), hjust = 0.5, size = 3, color = "black", fontface = "bold") +
@@ -36,7 +36,7 @@ influentialcases_plots <- function(m,mname2,mname1,size_factor) {
     theme_classic() + theme(legend.position = "none")
   
   p2 <- ggplot(df_ic, aes(x = CookDistance, y = Study, color = Influential)) +
-    geom_point(size = size_factor) +
+    geom_point(size = df_ic$CookDistance * size_factor) +
     scale_color_manual(values = c("FALSE" = "black", "TRUE" = "#A6CEE3")) + 
     geom_vline(xintercept = threshold_cook, linetype = "dashed", color = "red") +
     #geom_text(aes(label = ifelse(Influential, StudyID, "")), hjust = 0.5, size = 3, color = "black", fontface = "bold") +
@@ -44,7 +44,7 @@ influentialcases_plots <- function(m,mname2,mname1,size_factor) {
     theme_classic() + theme(legend.position = "none",axis.title.y = element_blank(), axis.text.y = element_blank())
   
   p3 <- ggplot(df_ic, aes(x = StudentizedResiduals, y = CookDistance, color = Influential)) +
-    geom_point(size = size_factor) +
+    geom_point(size = df_ic$CookDistance * size_factor) +
     scale_color_manual(values = c("FALSE" = "black", "TRUE" = "#A6CEE3")) + 
     geom_vline(xintercept = c(-1, 1)*threshold_out, linetype = "dashed", color = "red")+
     geom_hline(yintercept = threshold_cook, linetype = "dashed", color = "red")+

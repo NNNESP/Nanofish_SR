@@ -1,9 +1,14 @@
 ---
-title: "Nanofish: CAT activity"
+title: "Nanofish: Lipid peroxidation"
+# AChE activity 1        CAT activity 2         GPx activity 3     GSH content 4  
+# GST activity 5         Lipid peroxidation 6    *ROS levels 7       *SOD activity 8
+# *Motor function: Distance  9                 Sensory-motor function: Distance 10 
+# Predatory performance 11        [Feeding time 12]       [Speed during feeding 13]
 output:
   html_document:
     cache: false
     df_print: paged
+    mathjax: "cdn"
 bibliography: references.bib
 ---
 
@@ -11,13 +16,13 @@ bibliography: references.bib
 
 ## Load libraries
 
-```{r global options, warning=FALSE, cache=FALSE, include=FALSE}
+```{r global options, warning=FALSE, include=FALSE}
 pacman::p_load(knitr,
                rmdformats,
                metafor,
                dplyr,
                ggalluvial,
-               orchaRd,
+               orchaRd, #https://rdrr.io/github/daniel1noble/orchaRd/f/README.md
                GGally,
                patchwork,
                formatR,
@@ -26,7 +31,7 @@ pacman::p_load(knitr,
 
 ## Global options~çjk
 knitr::opts_chunk$set(
-  echo = FALSE, cache = TRUE, prompt = FALSE,
+  echo = FALSE, cache = FALSE, prompt = FALSE,
   tidy = TRUE, comment = NA,
   message = FALSE, warning = FALSE
 )
@@ -77,6 +82,7 @@ additional_results <- function(m) {
 ## Load data
 
 ```{r Load data, include=FALSE}
+n_outcome<-6
 
 file <- "mvMetaAnalysis.csv"
 
@@ -142,6 +148,7 @@ levels(df_original$Outcome) <- c(       "AChE activity",
 str(df_original)
 
 outcomeslist = sort(unique(df_original$Outcome))
+
 ```
 
 ### Calculate Effect Size
@@ -161,7 +168,7 @@ df_original <- metafor::escalc(measure = "SMD",
 ### Create variables
 
 ```{r create variables, echo=TRUE}
-n_outcome<-2
+outcome <- as.character(outcomeslist[[n_outcome]])
 
 mRF <- list() # random effects formula investigation models
 mRE <- list() # random effects multilevel models
@@ -189,10 +196,8 @@ colormap <-c("Embrio" = "khaki",
 ### Select outcome
 
 ```{r echo=FALSE, warning=FALSE}
-outcome <- as.character(outcomeslist[[n_outcome]])
-
 df <- df_original[ which(df_original$Outcome == outcome ),]
-df <- df[order(df$DevelopmentalStage,-df$yi),]
+#df <- df[order(df$DevelopmentalStage,-df$yi),]
 
 print(outcome)
 DT::datatable(df)
@@ -205,13 +210,15 @@ DT::datatable(df)
 > Before running any meta-analytic model, it is important to explore the meta-analytic dataset to search for potential outliers that could represent data extraction errors. [@nakagawa2022]
 
 ```{r}
-
+xmax<-ceiling(max(abs(df$yi)))
+xlimits <- (xmax+3*xmax)*c(-1,1)
 par(mfrow = c(1, 2))
 funnel(df$yi, df$vi, yaxis="sei",label="out",
-       xlab = "Effect size (Zr)", digits = 2, las = 1,
-      pch= 19, col = as.factor(df$Study))
+       xlab = "Effect size", digits = 2, las = 1,
+      pch= 19, col = as.factor(df$Study), slab=df$Study,xlim=xlimits,cex=0.55)
 funnel(df$yi, df$vi, yaxis="seinv",label="out",
-       xlab = "Effect size (Zr)",  digits = 2, las = 1) 
+       xlab = "Effect size",  digits = 2, las = 1, slab=df$Study,xlim=xlimits,
+       cex=0.55) 
 ```
 
 ## Alluvial plot
@@ -309,7 +316,7 @@ for (j in seq(1:length(REterms))){
 
 Study cluster, particle material and species as random effects term can further improve results?
 
-```{r echo=FALSE, cache=FALSE}
+```{r echo=FALSE}
 res <-vector("list",3)
 
 # with selected random effects formula only
@@ -395,6 +402,13 @@ summary(mRE[[mname2]])
 I2_ML_RobVar
 var.comp(mRE[[mname1]])
 diagnostic_plots(mRE[[mname2]])
+
+par(mfrow=c(1,3))
+REterms <- names(mRE[[mname2]]$s.names)
+
+for (j in seq(1:length(REterms))){
+   profile(mRE[[mname2]], sigma2=j)
+    title(sub = paste0(REterms[j],", n = ",mRE[[mname2]]$s.nlevels[j]),cex.sub = 1)}
 ```
 
 The meta-analysis comprised `r nES` comparisons from `r nEC` control group clusters of `r nSt` independent studies, so the random formula for `r outcome` was `r paste(deparse(RE_formula))`.
@@ -453,7 +467,7 @@ if (mRE[[bias]]$pval[2]<0.10){
 
 #### Plots
 
-```{r echo=FALSE, cache=FALSE}
+```{r echo=FALSE}
 print(bias)
 summary(mRE[[bias]])
 plot_timelagbias <- bubble_plot(mRE[[bias]], mod = "pub_year", group = "Study",
@@ -463,9 +477,15 @@ plot_timelagbias <- bubble_plot(mRE[[bias]], mod = "pub_year", group = "Study",
   scale_x_continuous(breaks = seq(min(df$pub_year),max(df$pub_year)),
                      labels = seq(min(df$Year),max(df$Year),by = 1))
 
+if (mRE[["PET"]]$pval[2]<0.10){
 plot_smallstudybias <- bubble_plot(mRE[[bias]], mod = "vi", group = "Study",
             xlab = "Variance", ylab = "Effect size (SMD)",
-            legend.pos = "none", colorby="Variance",colormap=colormap) 
+            legend.pos = "none", colorby="Variance",colormap=colormap)
+}else{
+  plot_smallstudybias <- bubble_plot(mRE[[bias]], mod = "ESSE", group = "Study",
+            xlab = "Sampling Error", ylab = "Effect size (SMD)",
+            legend.pos = "none", colorby="Variance",colormap=colormap)
+}
 
 print(plot_timelagbias + plot_smallstudybias)
 ```
@@ -482,7 +502,7 @@ If p\<0.050: studies with statistically significant findings tend to be publishe
 
 If p\>=0.050: studies with statistically significant findings **do not** tend to be published earlier than these with "negative" results, i.e. no time-lag bias exists in this dataset
 
-### Sensitivity analysis: publication bias with adapted SE (@nakagawa2022methods)
+### Sensitivity analysis: publication bias with adapted SE
 
 > Egger's regression and its variants suffer from low power and poor performance when there are fewer than 20 effect sizes, or when the overall effect is large. [@nakagawa2022]
 
@@ -524,7 +544,7 @@ If the results are the same, indicates the robustness of the small-study test.
 
 #### Plots
 
-```{r echo=FALSE,cache=FALSE}
+```{r echo=FALSE}
 if (mRE[[bias]]$pval[2]<0.05){
 plot_timelagbias <- bubble_plot(mRE[[bias2]], mod = "pub_year", group = "Study",
                                xlab = "Publication year", ylab = "Effect size (SMD)",
@@ -533,10 +553,15 @@ plot_timelagbias <- bubble_plot(mRE[[bias2]], mod = "pub_year", group = "Study",
   scale_x_continuous(breaks = seq(min(df$pub_year),max(df$pub_year)),
                      labels = seq(min(df$Year),max(df$Year),by = 1))
 
-plot_smallstudybias <- bubble_plot(mRE[[bias2]], mod = "ess_SE", group = "Study",
+if (mRE[["PET sensitivity"]]$pval[2]<0.10){
+plot_smallstudybias <- bubble_plot(mRE[[bias2]], mod = "ess_vi", group = "Study",
+            xlab = "Modified sampling error variance", ylab = "Effect size (SMD)",
+            legend.pos = "none", colorby="Variance",colormap=colormap)
+}else{
+  plot_smallstudybias <- bubble_plot(mRE[[bias2]], mod = "ess_SE", group = "Study",
             xlab = "Modified sampling error", ylab = "Effect size (SMD)",
-            legend.pos = "none", colorby="Variance",
-                               colormap=colormap) 
+            legend.pos = "none", colorby="Variance",colormap=colormap)
+}
 
 print(plot_timelagbias + plot_smallstudybias)}
 ```
@@ -615,7 +640,13 @@ m <- mRE
  # colnames(t6) <- c("Overall effect (pooled SMD)", "Standard error", "p-value", "Lower CI", "Upper CI","Lower PI","Upper PI")
 
   
-  t3 %>% kable(digits=c(0,0,0,2,1,4,2,2,2,2,2,2,2,2,2,2,2,2,2))
+  t3 %>% kable(col.names=c("n studies", "n ES clusters", "n ES", "overall effect", 
+                      "standard error", "p-value", "Lower CI", "Upper CI", 
+                      "Lower PI", "Upper PI", "Q", "Q p-value", "$I^2$$_{total}$", 
+                      "$I^2$$_{Study}$", "$I^2$$_{EScluster}$", "$I^2$$_{ES}$",
+                      "$\\sigma^2$$_{Study}$", "$\\sigma^2$$_{EScluster}$",
+                      "$\\sigma^2$$_{ES}$"),
+        digits = c(0, 0, 0, 2, 1, 4, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2))
   
   t4<-data.frame(sapply(m,  fitstats))
 rownames(t4) <-rownames(fitstats(m[[1]]))
@@ -633,7 +664,7 @@ DFBETAS: directly examine the influence of deleting the ith case on each individ
 So if a point has high Cook's Distance, use DFBETAS to identify witch estimate is mainly influenced (only makes sense for meta regression).
 
 ```{r echo=TRUE}
-influentialcases_plots(mRE,"ML_RobVar","ML",30)
+influentialcases_plots(mRE,"ML_RobVar","ML",3)
 
 ```
 
@@ -643,10 +674,11 @@ SYRCLE PROTOCOL: Meta-regression will be used for outcomes with at least 10 expe
 
 > The minimal number of studies or effect sizes required by a multilevel meta-regression remains unknown, albeit some simulation studies suggest that the estimates of model coefficients of a multilevel meta-regression are generally stable under various simulated situations.[@yang2023] ... the complexity of parameterization of such a meta-regression requires a large dataset to make optimization algorithms free of convergence issues.[@yang2023]
 
-```{r eval=FALSE, include=FALSE, r,title="Multicolinearity"}
+```{r Multicolinearity, eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
 df_MR <- select(df, c("Year", "Study", "EScluster", "ESid","DevelopmentalStage",
                       "ExposureDurationDays","ParticleSizeMean",
-                      "Concentration_mg_L","ParticleMaterial","yi", "vi"))
+                      #"Concentration_mg_L",
+                      "ParticleMaterial","yi", "vi"))
 df_MR<- df_MR[complete.cases(df_MR),]
 
 ggpairs(df_MR,
@@ -688,7 +720,7 @@ The meta-regression comprised `r nES_MR` comparisons from `r nEC_MR` control gro
 
 #### Diagnostics plots
 
-```{r, cache=FALSE}
+```{r}
 m<-mMR[[mname2]]
 
 summary(m)
@@ -698,12 +730,15 @@ diagnostic_plots(m)
 
 #### Influential cases
 
-```{r warning=FALSE, cache=FALSE}
-distance <- cooks.distance(m, cluster=df$Study)
-distance
-
+```{r warning=FALSE,fig.height=8, fig.width=10}
 tryCatch({
-  influentialcases_plots(mMR,mname2,mname1,5*10^-log10(max(distance,na.rm=TRUE)))
+  distance <- cooks.distance(m, cluster=df$Study)
+  distance
+}, error = function(e) {
+  message("Erro capturado: ", e$message)
+})
+tryCatch({
+  influentialcases_plots(mMR,mname2,mname1,3)
 }, error = function(e) {
   message("Erro capturado: ", e$message)
 })
@@ -719,7 +754,8 @@ tryCatch({
 
 [@nakagawa2021]
 
-```{r echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE}
+```{r echo=FALSE, fig.height=8, fig.width=10, message=FALSE, warning=FALSE}
+tryCatch({
 # overall
 p1<-orchard_plot(m, mod = "1", xlab = "Effect size", group = "Study", k = TRUE, g = TRUE, transfm = "none", angle = 0,legend.pos = "top.out") + 
   scale_x_discrete(labels = c("Overall effect")) +
@@ -746,12 +782,16 @@ layout <- "  ABC
   
 p1 + p2 + p4 + plot_spacer() + p5 + p3 + plot_layout(design = layout)
 
+}, error = function(e) {
+  message("Erro capturado: ", e$message)
+})
+
 #point estimate, confidence interval, prediction interval, 
 ```
 
 ## Model 2: + Concentration
 
-```{r echo=FALSE, cache=FALSE}
+```{r echo=FALSE}
 df_MR <- select(df, c("Year", "StudyID","Study", "EScluster", "ESid","DevelopmentalStage",
                       "ExposureDurationDays","ParticleSizeMean",
                       "Concentration_mg_L","yi", "vi"))
@@ -783,7 +823,7 @@ The meta-regression comprised `r nES_MR` comparisons from `r nEC_MR` control gro
 
 #### Diagnostics plots
 
-```{r, cache=FALSE}
+```{r}
 m<-mMR[[mname2]]
 
 summary(m)
@@ -793,12 +833,15 @@ diagnostic_plots(m)
 
 #### Influential cases
 
-```{r, cache=FALSE}
-distance <- cooks.distance(m, cluster=df$Study)
-distance
-
+```{r fig.height=8, fig.width=10}
 tryCatch({
-  influentialcases_plots(mMR,mname2,mname1,5*10^-log10(max(distance,na.rm=TRUE)))
+  distance <- cooks.distance(m, cluster=df$Study)
+  distance
+}, error = function(e) {
+  message("Erro capturado: ", e$message)
+})
+tryCatch({
+  influentialcases_plots(mMR,mname2,mname1,0.01)
 }, error = function(e) {
   message("Erro capturado: ", e$message)
 })
@@ -812,7 +855,8 @@ tryCatch({
 
 #### Orchard plots
 
-```{r echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE}
+```{r echo=FALSE, fig.height=8, fig.width=10, message=FALSE, warning=FALSE}
+tryCatch({
 # overall
 p1<-orchard_plot(m, mod = "1", xlab = "Effect size", group = "Study", k = TRUE, g = TRUE, transfm = "none", angle = 0,legend.pos = "top.out") + 
   scale_x_discrete(labels = c("Overall effect")) +
@@ -843,12 +887,16 @@ layout <- "  ABC
              "
 p1 + p2 + p4  + p6 + p5 + p3 + plot_layout(design = layout)
 
+}, error = function(e) {
+  message("Erro capturado: ", e$message)
+})
+
 #point estimate, confidence interval, prediction interval, 
 ```
 
 ## Model 3: + ParticleMaterial
 
-```{r echo=FALSE, cache=FALSE}
+```{r echo=FALSE}
 df_MR <- select(df, c("Year", "StudyID","Study", "EScluster", "ESid","DevelopmentalStage",
                       "ExposureDurationDays","ParticleSizeMean","ParticleMaterial",
                       "yi", "vi"))
@@ -880,7 +928,7 @@ The meta-regression comprised `r nES_MR` comparisons from `r nEC_MR` control gro
 
 #### Diagnostics plots
 
-```{r, cache=FALSE}
+```{r}
 m<-mMR[[mname2]]
 
 summary(m)
@@ -890,12 +938,15 @@ diagnostic_plots(m)
 
 #### Influential cases
 
-```{r, cache=FALSE}
-distance <- cooks.distance(m, cluster=df$Study)
-distance
-
+```{r fig.height=8, fig.width=10}
 tryCatch({
-  influentialcases_plots(mMR,mname2,mname1,5*10^-log10(max(distance,na.rm=TRUE)))
+  distance <- cooks.distance(m, cluster=df$Study)
+  distance
+}, error = function(e) {
+  message("Erro capturado: ", e$message)
+})
+tryCatch({
+  influentialcases_plots(mMR,mname2,mname1,3)
 }, error = function(e) {
   message("Erro capturado: ", e$message)
 })
@@ -909,8 +960,9 @@ tryCatch({
 
 #### Orchard plots
 
-```{r echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE}
+```{r echo=FALSE, fig.height=8, fig.width=10, message=FALSE, warning=FALSE}
 # overall
+tryCatch({
 p1<-orchard_plot(m, mod = "1", xlab = "Effect size", group = "Study", k = TRUE, g = TRUE, transfm = "none", angle = 0,legend.pos = "top.out") + 
   scale_x_discrete(labels = c("Overall effect")) +
   scale_fill_manual(values = "#a0a2a3") +
@@ -939,6 +991,9 @@ layout <- "  ABC
              "
   
 p1 + p2 + p4  + p7 + p5 + p3 + plot_layout(design = layout)
+}, error = function(e) {
+  message("Erro capturado: ", e$message)
+})
 
 #point estimate, confidence interval, prediction interval, 
 ```
