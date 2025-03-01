@@ -1,23 +1,22 @@
 ---
-title: "Nanofish"
+title: "Nanofish: CAT activity"
 output:
   html_document:
+    cache: false
     df_print: paged
 bibliography: references.bib
 ---
 
-# References
+# Set up environment
 
--   Yang, Y., Macleod, M., Pan, J., Lagisz, M., Nakagawa, S. (2023). Advanced methods and implementations for the meta-analyses of animal models: current practices and future recommendations. Neurosci. Biobehav. Rev., 146 <https://doi.org/10.1016/j.neubiorev.2022.105016>
+## Where to cite?
+
 -   <https://www.metafor-project.org/doku.php/analyses:konstantopoulos2011>
--   Viechtbauer, W., & Cheung, M. W.-L. (2010). *Outlier and influence diagnostics for meta-analysis. Research Synthesis Methods, 1(2), 112–125.* <doi:10.1002/jrsm.11>
 -   Viechtbauer, W. (2010). Conducting meta-analyses in R with the metafor package. *Journal of Statistical Software, 36*(3), 1–48. <https://doi.org/10.18637/jss.v036.i03>
--   Nakagawa, S., Lagisz, M., Jennions, M. D., Koricheva, J., Noble, D. W. A., Parker, T. H., Sánchez-Tójar, A., Yang, Y., & O'Dea, R. E. (2022). Methods for testing publication bias in ecological and evolutionary meta-analyses. *Methods in Ecology and Evolution*, 13, 4–21. [https://doi.org/10.1111/2041-210X.13724](#0)
 -   Stanley, T. D. (2017). Limitations of PET-PEESE and Other Meta-Analysis Methods. *Social Psychological and Personality Science*, *8*(5), 581-591. <https://doi.org/10.1177/1948550617693062>
 -   Nakagawa, S., Lagisz, M., O’Dea, R. E., Rutkowska, J., Yang, Y., Noble, D. W., & Senior, A. M. (2021). The Orchard Plot: Cultivating Forest Plots for Use in Ecology, Evolution and Beyond. **Research Synthesis Methods**, 12: 4-12, <https://doi.org/10.1002/jrsm.1424> (preprint = *EcoEvoRxiv* <https://doi.org/10.32942/osf.io/epqa7>)
--   Harrer, M., Cuijpers, P., Furukawa, T.A., & Ebert, D.D. (2021). *Doing Meta-Analysis with R: A Hands-On Guide*. Boca Raton, FL and London: Chapman & Hall/CRC Press. ISBN 978-0-367-61007-4
 
-# Load libraries
+## Load libraries
 
 ```{r global options, warning=FALSE, cache=FALSE, include=FALSE}
 pacman::p_load(knitr,
@@ -27,7 +26,10 @@ pacman::p_load(knitr,
                ggalluvial,
                orchaRd,
                GGally,
-               patchwork)
+               patchwork,
+               formatR,
+               emmeans, 
+               clubSandwich)
 
 ## Global options~çjk
 knitr::opts_chunk$set(
@@ -37,9 +39,9 @@ knitr::opts_chunk$set(
 )
 ```
 
-# Load functions
+## Load functions
 
-```{r include=FALSE}
+```{r load functions, include=FALSE}
 source("bubble_plot.R",encoding = "UTF-8") # adicionado controles para cores por variável categórica, mesmo em gráficos sem o parâmetro "by" na função bubble_plot
 source("var.comp.R",encoding = "UTF-8") # alterado para multinível de 4 níveis
 source("diagnostic_plots.R",encoding = "UTF-8") 
@@ -79,7 +81,7 @@ additional_results <- function(m) {
 }
 ```
 
-# Load data
+## Load data
 
 ```{r Load data, include=FALSE}
 
@@ -98,7 +100,7 @@ df_original$ESid <- paste(df_original$ESid, c(1:nrow(df_original)), sep = "")
 str(df_original)
 ```
 
-## Adjust classes and transformations
+### Adjust classes and transformations
 
 ```{r Adjust classes and transformations, echo=FALSE}
 # adjust classes
@@ -149,10 +151,27 @@ str(df_original)
 outcomeslist = sort(unique(df_original$Outcome))
 ```
 
-# Create variables
+### Calculate Effect Size
 
-```{r echo=TRUE}
-RE_formula <- setNames(vector("list", length(outcomeslist)), outcomeslist)
+```{r effect size, echo=TRUE}
+df_original <- metafor::escalc(measure = "SMD", 
+             n1i = n_treat, 
+             n2i = n_ctrl, 
+             m1i = mean_treat, 
+             m2i = mean_ctrl, 
+             sd1i = STD_treat, 
+             sd2i = STD_ctrl, 
+             data = df_original, vtype = "UB") 
+#write.csv(df_original,file = "mvMetaAnalysis_SMDs.csv")
+```
+
+### Create variables
+
+```{r create variables, echo=TRUE}
+n_outcome<-2
+
+if(n_outcome==1){RE_formula <- setNames(vector("list", length(outcomeslist)), outcomeslist)}
+
 mRF <- list() # random effects formula investigation models
 mRE <- list() # random effects multilevel models
 mMR <- list() # multilevel metaregression models
@@ -164,34 +183,28 @@ colormap <-c("Embrio" = "khaki",
             "Unclear" = "plum",
             "ExposureDurationDays"= "cornflowerblue",
             "ParticleSizeMean"= "chartreuse4",
-            "Concentration_mg_L"= "chocolate4",
+            "Concentration_mg_L"= "#fa0079ff",
+            "Aminoplast" = "chocolate4",
+            "LDPE" = "#2200faff",
+            "PE" = "#0089faff",
+            "PET" = "#00faedff",
+            "PLA" = "#00fa29ff",
+            "PS" = "#faf200ff",
+            "PVC" = "#fa9a00ff",
             "Publication year"="black",
             "Variance"="navyblue")
 ```
 
-# Calculate Effect Size
+### Select outcome
 
-```{r echo=TRUE}
-df_original <- metafor::escalc(measure = "SMD", 
-             n1i = n_treat, #n of treatment group
-             n2i = n_ctrl, #n of control group
-             m1i = mean_treat, #mean of treatment group 
-             m2i = mean_ctrl, #mean of control group
-             sd1i = STD_treat, #sd of treatment group
-             sd2i = STD_ctrl, #sd of control group
-             data = df_original, vtype = "UB") 
-#write.csv(df_original,file = "mvMetaAnalysis_SMDs.csv")
-```
-
-# Select outcome
-
-```{r echo=FALSE}
-outcome <- as.character(outcomeslist[[1]])
+```{r echo=FALSE, warning=FALSE}
+outcome <- as.character(outcomeslist[[n_outcome]])
 
 df <- df_original[ which(df_original$Outcome == outcome ),]
 df <- df[order(df$DevelopmentalStage,-df$yi),]
 
 print(outcome)
+DT::datatable(df)
 ```
 
 # Exploratory data analysis
@@ -295,10 +308,10 @@ for (j in seq(1:length(REterms))){
 
 Study cluster, particle material and species as random effects term can further improve results?
 
-```{r echo=FALSE}
+```{r echo=FALSE, cache=FALSE}
 res <-vector("list",3)
 
-# selected random effects formula
+# with selected random effects formula only
 mRF[["base"]] <- rma.mv(yi, vi, 
               random = RE_formula[[outcome]],
               data=df, method="ML")
@@ -385,7 +398,7 @@ diagnostic_plots(mRE[[mname2]])
 
 The meta-analysis comprised `r nES` comparisons from `r nEC` control group clusters of `r nSt` independent studies, so the random formula for `r outcome` was `r paste(deparse(RE_formula[[outcome]]))`.
 
-No difference between treatment and control groups (ES = `r beta` ± `r se`, CI95% = `r ci.lb` to `r ci.ub`, predicted interval `r pi.lb` to `r pi.ub`), with high heterogeneity (i² = `r I2_Total`, Q = `r QE`, p `r QEp` ) and variance explained by each component of `r sigma2`.
+No difference between treatment and control groups (ES = `r beta` ± `r se`, CI95% = `r ci_lb` to `r ci_ub`, predicted interval `r pi_lb` to `r pi_ub`), with high heterogeneity (i² = `r I2_Total`, Q = `r QE`, p `r QEp` ) and variance explained by each component of `r sigma2`.
 
 # Publication bias
 
@@ -437,7 +450,7 @@ if (mRE[[bias]]$pval[2]<0.10){
 
 #### Plots
 
-```{r echo=FALSE}
+```{r echo=FALSE, cache=FALSE}
 print(bias)
 summary(mRE[[bias]])
 plot_timelagbias <- bubble_plot(mRE[[bias]], mod = "pub_year", group = "Study",
@@ -508,7 +521,8 @@ If the results are the same, indicates the robustness of the small-study test.
 
 #### Plots
 
-```{r echo=FALSE}
+```{r echo=FALSE,cache=FALSE}
+if (mRE[[bias]]$pval[2]<0.05){
 plot_timelagbias <- bubble_plot(mRE[[bias2]], mod = "pub_year", group = "Study",
                                xlab = "Publication year", ylab = "Effect size (SMD)",
                                legend.pos = "none", colorby="Publication year",
@@ -521,7 +535,7 @@ plot_smallstudybias <- bubble_plot(mRE[[bias2]], mod = "ess_SE", group = "Study"
             legend.pos = "none", colorby="Variance",
                                colormap=colormap) 
 
-print(plot_timelagbias + plot_smallstudybias)
+print(plot_timelagbias + plot_smallstudybias)}
 ```
 
 # Sensitivity
@@ -645,7 +659,7 @@ ggpairs(df_MR,
 df_MR <- select(df, c("Year", "StudyID","Study", "EScluster", "ESid","DevelopmentalStage",
                       "ExposureDurationDays","ParticleSizeMean","yi", "vi"))
 
-mname1 <- "Reduced"
+mname1 <- "Base"
 mname2 <-paste0(mname1,"_RobVar")
 
 mods_formula <- formula(~ ParticleSizeMean
@@ -665,26 +679,31 @@ print(paste0("Number of studies: ",nSt_MR,
 
 mMR[[mname2]] <- robust(mMR[[mname1]], cluster = df_MR$Study, clubSandwich = TRUE,verbose=TRUE)
 mMR[[mname2]] <- additional_results(mMR[[mname2]])
-
-summary(mMR[[mname2]])
 ```
 
 The meta-regression comprised `r nES_MR` comparisons from `r nEC_MR` control group clusters of `r nSt_MR` independent studies.
 
 #### Diagnostics plots
 
-```{r}
-mMR[["Reduced_RobVar"]]$fit.stats
+```{r, cache=FALSE}
+m<-mMR[[mname2]]
 
-diagnostic_plots(mMR[["Reduced_RobVar"]])
+summary(m)
+m$fit.stats
+diagnostic_plots(m)
 ```
 
 #### Influential cases
 
-```{r warning=FALSE}
-mname1<-"Reduced"
-  mname2<-paste0(mname1,"_RobVar")
-influentialcases_plots(mMR,mname2,mname1,0.1)
+```{r warning=FALSE, cache=FALSE}
+distance <- cooks.distance(m, cluster=df$Study)
+distance
+
+tryCatch({
+  influentialcases_plots(mMR,mname2,mname1,5*10^-log10(max(distance,na.rm=TRUE)))
+}, error = function(e) {
+  message("Erro capturado: ", e$message)
+})
 
 # measure residuals
 # ic_distance <-cooks.distance(mname2, cluster=df$Study)
@@ -695,9 +714,7 @@ influentialcases_plots(mMR,mname2,mname1,0.1)
 
 #### Orchard plots
 
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-m<-mMR[["Reduced_RobVar"]]
-
+```{r echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE}
 # overall
 p1<-orchard_plot(m, mod = "1", xlab = "Effect size", group = "Study", k = TRUE, g = TRUE, transfm = "none", angle = 0,legend.pos = "top.out") + 
   scale_x_discrete(labels = c("Overall effect")) +
@@ -729,12 +746,12 @@ p1 + p2 + p4 + plot_spacer() + p5 + p3 + plot_layout(design = layout)
 
 ## Model 2: + Concentration
 
-```{r echo=FALSE}
+```{r echo=FALSE, cache=FALSE}
 df_MR <- select(df, c("Year", "StudyID","Study", "EScluster", "ESid","DevelopmentalStage",
                       "ExposureDurationDays","ParticleSizeMean",
                       "Concentration_mg_L","yi", "vi"))
 
-mname1 <- "Basic"
+mname1 <- "Conc+"
 mname2<-paste0(mname1,"_RobVar")
 
 mods_formula <- formula(~ ParticleSizeMean
@@ -755,39 +772,42 @@ print(paste0("Number of studies: ",nSt_MR,
 
 mMR[[mname2]] <- robust(mMR[[mname1]], cluster = df_MR$Study, clubSandwich = TRUE,verbose=TRUE)
 mMR[[mname2]] <- additional_results(mMR[[mname2]])
-
-summary(mMR[[mname2]])
 ```
 
 The meta-regression comprised `r nES_MR` comparisons from `r nEC_MR` control group clusters of `r nSt_MR` independent studies.
 
 #### Diagnostics plots
 
-```{r}
-mMR[["Basic_RobVar"]]$fit.stats
+```{r, cache=FALSE}
+m<-mMR[[mname2]]
 
-diagnostic_plots(mMR[["Basic_RobVar"]])
+summary(m)
+m$fit.stats
+diagnostic_plots(m)
 ```
 
 #### Influential cases
 
-```{r warning=FALSE}
-mname1<-"Basic"
-  mname2<-paste0(mname1,"_RobVar")
-influentialcases_plots(mMR,mname2,mname1,0.05)
+```{r, cache=FALSE}
+distance <- cooks.distance(m, cluster=df$Study)
+distance
+
+tryCatch({
+  influentialcases_plots(mMR,mname2,mname1,5*10^-log10(max(distance,na.rm=TRUE)))
+}, error = function(e) {
+  message("Erro capturado: ", e$message)
+})
 
 # measure residuals
-#ic_distance <-cooks.distance(mname2, cluster=df$Study)
+#ic_distance <-cooks.distance(m, cluster=df$Study)
 ########## Not available for robust rma: ###########
-#ic_rstudent <- rstudent(mname1, 2, progbar=FALSE, cluster=df$Study, reestimate=TRUE) 
-#ic_dfbetas <-dfbetas(mname1, cluster=df$Study)
+#ic_rstudent <- rstudent(mMR[[mname1]], 2, progbar=FALSE, cluster=df$Study, reestimate=TRUE) 
+#ic_dfbetas <-dfbetas(mMR[[mname1]], cluster=df$Study)
 ```
 
 #### Orchard plots
 
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-m<-mMR[["Basic_RobVar"]]
-
+```{r echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE}
 # overall
 p1<-orchard_plot(m, mod = "1", xlab = "Effect size", group = "Study", k = TRUE, g = TRUE, transfm = "none", angle = 0,legend.pos = "top.out") + 
   scale_x_discrete(labels = c("Overall effect")) +
@@ -823,17 +843,16 @@ p1 + p2 + p4  + p6 + p5 + p3 + plot_layout(design = layout)
 
 ## Model 3: + ParticleMaterial
 
-```{r echo=FALSE}
+```{r echo=FALSE, cache=FALSE}
 df_MR <- select(df, c("Year", "StudyID","Study", "EScluster", "ESid","DevelopmentalStage",
                       "ExposureDurationDays","ParticleSizeMean","ParticleMaterial",
-                      "Concentration_mg_L","yi", "vi"))
+                      "yi", "vi"))
 
-mname1 <- "Full"
+mname1 <- "PartMat+"
 mname2 <-paste0(mname1,"_RobVar")
 
 mods_formula <- formula(~ (ParticleSizeMean 
                            + ExposureDurationDays*DevelopmentalStage
-                           + Concentration_mg_L
                            + ParticleMaterial))
 
 mMR[[mname1]] <- rma.mv(yi, VCV,random = RE_formula[[outcome]], mods= mods_formula,
@@ -850,28 +869,28 @@ print(paste0("Number of studies: ",nSt_MR,
 
 mMR[[mname2]] <- robust(mMR[[mname1]], cluster = df_MR$Study, clubSandwich = TRUE,verbose=TRUE)
 mMR[[mname2]] <- additional_results(mMR[[mname2]])
-
-summary(mMR[[mname2]])
 ```
 
 The meta-regression comprised `r nES_MR` comparisons from `r nEC_MR` control group clusters of `r nSt_MR` independent studies.
 
 #### Diagnostics plots
 
-```{r}
-mMR[["Full_RobVar"]]$fit.stats
+```{r, cache=FALSE}
+m<-mMR[[mname2]]
 
-diagnostic_plots(mMR[["Full_RobVar"]])
+summary(m)
+m$fit.stats
+diagnostic_plots(m)
 ```
 
 #### Influential cases
 
-```{r}
-mname1<-"Full"
-mname2<-paste0(mname1,"_RobVar")
+```{r, cache=FALSE}
+distance <- cooks.distance(m, cluster=df$Study)
+distance
 
 tryCatch({
-  influentialcases_plots(mMR,mname2,mname1,0.05)
+  influentialcases_plots(mMR,mname2,mname1,5*10^-log10(max(distance,na.rm=TRUE)))
 }, error = function(e) {
   message("Erro capturado: ", e$message)
 })
@@ -885,9 +904,7 @@ tryCatch({
 
 #### Orchard plots
 
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-m<-mMR[["Full_RobVar"]]
-
+```{r echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE}
 # overall
 p1<-orchard_plot(m, mod = "1", xlab = "Effect size", group = "Study", k = TRUE, g = TRUE, transfm = "none", angle = 0,legend.pos = "top.out") + 
   scale_x_discrete(labels = c("Overall effect")) +
@@ -908,8 +925,6 @@ p4<-bubble_plot(m, mod = "ExposureDurationDays", group = "Study", by = "Developm
 
 p5<-bubble_plot(m, mod = "ParticleSizeMean", group = "Study", xlab = "Mean Particle Size", alpha=0.5, k = TRUE, g = TRUE, transfm = "none",legend.pos = "none",colorby="ParticleSizeMean",colormap=colormap)
 
-p6<-bubble_plot(m, mod = "Concentration_mg_L", group = "Study", xlab = "Concentration (mg/L)", alpha=0.5, k = TRUE, g = TRUE, transfm = "none",legend.pos = "none",colorby="Concentration_mg_L",colormap=colormap)
-
 p7<-orchard_plot(m, mod = "ParticleMaterial", xlab = "Effect size", group = "Study", k = TRUE, g = TRUE, transfm = "none", alpha=0.5,legend.pos = "bottom.out")+
   scale_color_manual(values = colormap)+
   scale_fill_manual(values = colormap)
@@ -918,8 +933,7 @@ layout <- "  ABC
              DEF
              "
   
-p1 + p2 + p4  + p6 + p5 + p3 + plot_layout(design = layout)
-p7
+p1 + p2 + p4  + p7 + p5 + p3 + plot_layout(design = layout)
 
 #point estimate, confidence interval, prediction interval, 
 ```
