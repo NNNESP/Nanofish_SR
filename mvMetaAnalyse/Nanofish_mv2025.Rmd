@@ -9,13 +9,6 @@ bibliography: references.bib
 
 # Set up environment
 
-## Where to cite?
-
--   <https://www.metafor-project.org/doku.php/analyses:konstantopoulos2011>
--   Viechtbauer, W. (2010). Conducting meta-analyses in R with the metafor package. *Journal of Statistical Software, 36*(3), 1–48. <https://doi.org/10.18637/jss.v036.i03>
--   Stanley, T. D. (2017). Limitations of PET-PEESE and Other Meta-Analysis Methods. *Social Psychological and Personality Science*, *8*(5), 581-591. <https://doi.org/10.1177/1948550617693062>
--   Nakagawa, S., Lagisz, M., O’Dea, R. E., Rutkowska, J., Yang, Y., Noble, D. W., & Senior, A. M. (2021). The Orchard Plot: Cultivating Forest Plots for Use in Ecology, Evolution and Beyond. **Research Synthesis Methods**, 12: 4-12, <https://doi.org/10.1002/jrsm.1424> (preprint = *EcoEvoRxiv* <https://doi.org/10.32942/osf.io/epqa7>)
-
 ## Load libraries
 
 ```{r global options, warning=FALSE, cache=FALSE, include=FALSE}
@@ -49,7 +42,7 @@ source("influentialcases_plots.R",encoding = "UTF-8")
 
 # extract values for report in R markdown
 extract_report <- function(m, outcome, RE_formula) {
-  assign("re_formula", deparse(RE_formula[[outcome]]), envir = .GlobalEnv)
+  assign("re_formula", deparse(RE_formula), envir = .GlobalEnv)
   assign("beta", m$beta, envir = .GlobalEnv)
   assign("se", m$pi$se, envir = .GlobalEnv)
   assign("tval", m$pi$tval, envir = .GlobalEnv)
@@ -170,8 +163,6 @@ df_original <- metafor::escalc(measure = "SMD",
 ```{r create variables, echo=TRUE}
 n_outcome<-2
 
-if(n_outcome==1){RE_formula <- setNames(vector("list", length(outcomeslist)), outcomeslist)}
-
 mRF <- list() # random effects formula investigation models
 mRE <- list() # random effects multilevel models
 mMR <- list() # multilevel metaregression models
@@ -270,18 +261,18 @@ nEC <- mRF[["base"]]$s.nlevels[2] # number of ESclusters
 nES <- mRF[["base"]]$s.nlevels[3] # number of independent ES (OBS: there is no repeated measurements included)
 
 if (nES == nSt){ 
-  RE_formula[[outcome]] = formula(~1 | Study) # one ES by Study
+  RE_formula = formula(~1 | Study) # one ES by Study
 } else if (nEC>nSt & nEC<nES){ 
-  RE_formula[[outcome]] = formula(~1 | Study/EScluster/ESid) # more than one EScluster by Study
+  RE_formula = formula(~1 | Study/EScluster/ESid) # more than one EScluster by Study
 } else{
-  RE_formula[[outcome]] = formula(~1 | Study/ESid) # only one EScluster by Study
+  RE_formula = formula(~1 | Study/ESid) # only one EScluster by Study
 }
 
 print(paste0("Considering number of studies: ",nSt,
             ", number of ES clusters: ",nEC,
             " and number of independent observations of ES: ",nES,
             ", the random effects formula for ",outcome,
-            " is: ", deparse(RE_formula[[outcome]])))
+            " is: ", deparse(RE_formula)))
 
 REterms <- names(mRF[["base"]]$s.names)
 
@@ -289,12 +280,12 @@ par(mfrow=c(2,3))
 for (j in seq(1:length(REterms))){
    profile(mRF[["base"]], sigma2=j)
     title(sub = paste0(REterms[j],", n = ",mRF[["base"]]$s.nlevels[j]),cex.sub = 1)}
-   mtext(paste(outcome,deparse(RE_formula[[outcome]])),
+   mtext(paste(outcome,deparse(RE_formula)),
          cex=0.6,side = 3, line = -1.2, outer = TRUE)
 
 ## Overfiting correction check
 mRF[["base"]] <- rma.mv(yi, vi, 
-              random = RE_formula[[outcome]],
+              random = RE_formula,
               data=df, method="ML")
 
 REterms <- names(mRF[["base"]]$s.names)
@@ -303,6 +294,16 @@ for (j in seq(1:length(REterms))){
    profile(mRF[["base"]], sigma2=j)
     title(sub = paste0(REterms[j],", n = ",mRF[["base"]]$s.nlevels[j]),cex.sub = 1)}
 ```
+
+> A profile likelihood plot should show a single peak at the corresponding ML/REML estimate. If `refline=TRUE` (the default), the value of the parameter estimate is indicated by a dotted vertical line and its log-likelihood value by a dotted horizontal line. Hence, the intersection of these two lines should correspond to the peak (assuming that the model was fitted with ML/REML estimation).
+>
+> When profiling a variance component (or some other parameter that cannot be negative), the peak may be at zero (if this corresponds to the ML/REML estimate of the parameter). In this case, the profiled log-likelihood should be a monotonically decreasing function of the parameter. Similarly, when profiling a correlation component, the peak may be at -1 or +1.
+>
+> If the profiled log-likelihood has multiple peaks, this indicates that the likelihood surface is not unimodal. In such cases, the ML/REML estimate may correspond to a local optimum (when the intersection of the two dotted lines is not at the highest peak).
+>
+> If the profile is flat (over the entire parameter space or large portions of it), then this suggests that at least some of the parameters of the model are not identifiable (and the parameter estimates obtained are to some extent arbitrary). See Raue et al. (2009) for some further discussion of parameter identifiability and the use of profile likelihoods to check for this.
+>
+> The function checks whether any profiled log-likelihood value is actually larger than the log-likelihood of the fitted model (using a numerical tolerance of `lltol`). If so, a warning is issued as this might indicate that the optimizer did not identify the actual ML/REML estimate of the parameter profiled.[@viechtbauer2022][@viechtbauer2010a]
 
 ## Additional random effects factors
 
@@ -313,22 +314,22 @@ res <-vector("list",3)
 
 # with selected random effects formula only
 mRF[["base"]] <- rma.mv(yi, vi, 
-              random = RE_formula[[outcome]],
+              random = RE_formula,
               data=df, method="ML")
 
 # add Study Cluster (nested results were equal)
 mRF[["StudyCluster"]] <- rma.mv(yi, vi, 
-              random = list(~ 1 | StudyCluster, RE_formula[[outcome]]),
+              random = list(~ 1 | StudyCluster, RE_formula),
               data=df, method="ML")
 
 # add Particle Material
 mRF[["ParticleMat"]] <- rma.mv(yi, vi, 
-              random = list(RE_formula[[outcome]], ~ 1 | ParticleMaterial),
+              random = list(RE_formula, ~ 1 | ParticleMaterial),
               data=df, method="ML")
 
 # add Species
 mRF[["Species"]] <- rma.mv(yi, vi, 
-              random = list(RE_formula[[outcome]], ~ 1 | Species),
+              random = list(RE_formula, ~ 1 | Species),
               data=df, method="ML")
 
 t1<-data.frame(sapply(mRF,  fitstats))
@@ -372,7 +373,7 @@ if (nES == nSt){
 mname1 <-"ML"
 mname2 <-paste0(mname1,"_RobVar")
 
-mRE[[mname1]] <- rma.mv(yi, VCV,random = RE_formula[[outcome]],
+mRE[[mname1]] <- rma.mv(yi, VCV,random = RE_formula,
                                data=df,slab = Study, method="REML",test="t", 
                                dfs="contain", level=95)
 mRE[[mname1]] <- additional_results(mRE[[mname1]])
@@ -396,7 +397,7 @@ var.comp(mRE[[mname1]])
 diagnostic_plots(mRE[[mname2]])
 ```
 
-The meta-analysis comprised `r nES` comparisons from `r nEC` control group clusters of `r nSt` independent studies, so the random formula for `r outcome` was `r paste(deparse(RE_formula[[outcome]]))`.
+The meta-analysis comprised `r nES` comparisons from `r nEC` control group clusters of `r nSt` independent studies, so the random formula for `r outcome` was `r paste(deparse(RE_formula))`.
 
 No difference between treatment and control groups (ES = `r beta` ± `r se`, CI95% = `r ci_lb` to `r ci_ub`, predicted interval `r pi_lb` to `r pi_ub`), with high heterogeneity (i² = `r I2_Total`, Q = `r QE`, p `r QEp` ) and variance explained by each component of `r sigma2`.
 
@@ -414,6 +415,8 @@ No difference between treatment and control groups (ES = `r beta` ± `r se`, CI9
 
 > Given that high heterogeneity may invalidate publication bias test, it is best to account for the potential heterogeneity when testing publication bias. [@yang2023]
 
+> PET-PEESE performs poorly in research areas where there are only a few studies, all studies use small samples, and where there is very high heterogeneity of results from study to study. Nonetheless, the statistical properties of conventional meta-analysis approaches are much worse than PET-PEESE under these same conditions.[@stanley2017]
+
 So, **better use meta-regression dataset**, but requires larger dataset to avoid possible convergence issues.
 
 ```{r include=FALSE}
@@ -424,7 +427,7 @@ df$pub_year <- df$Year-round(mean(df$Year),0)
 df$ESSE <- sqrt(df$vi) ## sampling error for ES
 
 bias <-"PET"
-mRE[[bias]] <- rma.mv(yi, VCV, random = RE_formula[[outcome]],
+mRE[[bias]] <- rma.mv(yi, VCV, random = RE_formula,
                                mods = ~ ESSE + pub_year, 
                                data=df,slab = Study, method="REML",test="t", 
                                dfs="contain", level=95)
@@ -436,7 +439,7 @@ mRE[[bias]] <- additional_results(mRE[[bias]])
 # PEESE + year
 if (mRE[[bias]]$pval[2]<0.10){
   mname<-"PEESE"
-  mRE[[mname]] <- rma.mv(yi, VCV, random = RE_formula[[outcome]],
+  mRE[[mname]] <- rma.mv(yi, VCV, random = RE_formula,
               mods = ~ vi + pub_year, 
               data=df,slab = Study, method="REML",test="t", 
               dfs="contain", level=95)
@@ -494,7 +497,7 @@ if (mRE[[bias]]$pval[2]<0.05){
   
   # PET + year
   bias2 <-"PET sensitivity"
-  mRE[[bias2]] <- rma.mv(yi, VCV, random = RE_formula[[outcome]],
+  mRE[[bias2]] <- rma.mv(yi, VCV, random = RE_formula,
               mods = ~ ess_SE + pub_year, 
               data=df,slab = Study, method="REML",test="t", 
               dfs="contain", level=95)
@@ -504,7 +507,7 @@ if (mRE[[bias]]$pval[2]<0.05){
   # PEESE + year
   if (mRE[[bias2]]$pval[2]<0.10){
     mname <- "PEESE sensitivity"
-    mRE[[mname]] <- rma.mv(yi, VCV, random = RE_formula[[outcome]],
+    mRE[[mname]] <- rma.mv(yi, VCV, random = RE_formula,
                 mods = ~ ess_vi + pub_year, 
                 data=df,slab = Study, method="REML",test="t", 
                 dfs="contain", level=95)
@@ -553,7 +556,7 @@ if (VCVrho != 0){
     
     VCV2 <- vcalc(vi, cluster = interaction(df$EScluster,df$Study), obs = ESid, data = df, rho = rho_range[j])
     
-    mRE[[mname]] <- rma.mv(yi, VCV2,random = RE_formula[[outcome]],
+    mRE[[mname]] <- rma.mv(yi, VCV2,random = RE_formula,
                                    data=df,slab = Study, method="REML",test="t", 
                                    dfs="contain", level=95)
     mRE[[mname]] <- robust(mRE[[mname]], cluster = df$Study, clubSandwich = TRUE)
@@ -577,7 +580,7 @@ for (i in sort(unique(df$Study))) {
     print(mname)
     VCV2 <- vcalc(vi, cluster = interaction(df_temp$EScluster,df_temp$Study), obs = ESid, data = df_temp, rho = rho_range[j])
     
-    mRE[[mname]] <- rma.mv(yi, VCV2,random = RE_formula[[outcome]],
+    mRE[[mname]] <- rma.mv(yi, VCV2,random = RE_formula,
                          data=df_temp,slab = Study, method="REML",test="t", 
                          dfs="contain", level=95)
     mRE[[mname]] <- robust(mRE[[mname]], cluster = df_temp$Study, clubSandwich = TRUE)
@@ -665,7 +668,7 @@ mname2 <-paste0(mname1,"_RobVar")
 mods_formula <- formula(~ ParticleSizeMean
                              + ExposureDurationDays*DevelopmentalStage)
 
-mMR[[mname1]] <- rma.mv(yi, VCV,random = RE_formula[[outcome]], mods= mods_formula,
+mMR[[mname1]] <- rma.mv(yi, VCV,random = RE_formula, mods= mods_formula,
                  data=df_MR,slab = Study, method="REML",test="t",
                  dfs="contain", level=95) #it will only keep complete cases
 
@@ -714,6 +717,8 @@ tryCatch({
 
 #### Orchard plots
 
+[@nakagawa2021]
+
 ```{r echo=FALSE, message=FALSE, warning=FALSE, cache=FALSE}
 # overall
 p1<-orchard_plot(m, mod = "1", xlab = "Effect size", group = "Study", k = TRUE, g = TRUE, transfm = "none", angle = 0,legend.pos = "top.out") + 
@@ -758,7 +763,7 @@ mods_formula <- formula(~ ParticleSizeMean
                              + Concentration_mg_L
                              + ExposureDurationDays*DevelopmentalStage)
 
-mMR[[mname1]] <- rma.mv(yi, VCV,random = RE_formula[[outcome]], mods= mods_formula,
+mMR[[mname1]] <- rma.mv(yi, VCV,random = RE_formula, mods= mods_formula,
                  data=df_MR,slab = Study, method="REML",test="t",
                  dfs="contain", level=95) #it will only keep complete cases
 
@@ -855,7 +860,7 @@ mods_formula <- formula(~ (ParticleSizeMean
                            + ExposureDurationDays*DevelopmentalStage
                            + ParticleMaterial))
 
-mMR[[mname1]] <- rma.mv(yi, VCV,random = RE_formula[[outcome]], mods= mods_formula,
+mMR[[mname1]] <- rma.mv(yi, VCV,random = RE_formula, mods= mods_formula,
                  data=df_MR,slab = Study, method="REML",test="t",
                  dfs="contain", level=95) #it will only keep complete cases
 
