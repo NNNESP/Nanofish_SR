@@ -27,7 +27,7 @@ pacman::p_load(knitr,
                patchwork,
                formatR,
                emmeans,
-               #meta,
+              # meta,
                clubSandwich)
 
 ## Global options~çjk
@@ -429,6 +429,7 @@ REterms <- names(mRE[[mname2]]$s.names)
 for (j in seq(1:length(REterms))){
    profile(mRE[[mname2]], sigma2=j)
     title(sub = paste0(REterms[j],", n = ",mRE[[mname2]]$s.nlevels[j]),cex.sub = 1)}
+
 ```
 
 The meta-analysis comprised `r nES` comparisons from `r nEC` control group clusters of `r nSt` independent studies, so the random formula for `r outcome` was `r paste(deparse(RE_formula))`.

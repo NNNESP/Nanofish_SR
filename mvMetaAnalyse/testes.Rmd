@@ -276,7 +276,7 @@ variability in our data better than a two-level model. When we find that
 a two-level model provides a fit comparable to a three-level
 model, Occam’s razor should be applied: we favor the two-level model
 over the three-level model, since it is less complex, but explains our
-data just as well.
+data just as well. https://bookdown.org/MathiasHarrer/Doing_Meta_Analysis_in_R/multilevel-ma.html
 
 run sensitivity analysis varying values of rho
 
