@@ -339,7 +339,7 @@ df_original %>%
 ```
 
 ## Models
-OBS: Results are not appropriate because it is not possible to include multilevel structure
+OBS: Results are not appropriate because it is not possible to include multilevel structure, but... if I calculate vcalc already considering the different levels of correlations?
 
 ```{r}
 #https://metafor-project.org/doku.php/analyses:berkey1998
@@ -348,28 +348,25 @@ MV<-list()
 
 VCVrho<-0.5
 
-VCV <- vcalc(vi, cluster = interaction(df_original$EScluster,df_original$Study,df_original$Outcome), obs = ESid, data = df_original, rho = VCVrho)
-```
+VCV <- vcalc(vi, cluster = Study, type=Outcome, grp1=ESid, grp2=EScluster, w1=n_treat, w2=n_ctrl, data = df_original, rho = VCVrho)
 
-```{r}
 MV[[1]] <- rma.mv(yi, VCV,random = ~ Outcome | Study, mods= ~  0 + Outcome,
                         data=df_original,slab = Study, method="REML",test="t",
                         dfs="contain", level=95) 
 MV[[2]] <- robust(MV[[1]], cluster = df_original$Study, clubSandwich = TRUE,verbose=TRUE)
 
-MV[[3]] <- rma.mv(yi, VCV,random = ~ Outcome | Study, mods= ~  0 + Outcome +
-                 Outcome:(ParticleSizeMean + Concentration_mg_L + ExposureDurationDays*DevelopmentalStage),
-                        data=df_original,slab = Study, method="REML",test="t",
-                        dfs="contain", level=95) #it will only keep complete cases
-#Aviso: 84 rows with NAs omitted from model fitting.Aviso: Redundant predictors dropped from the model.Aviso: One or more levels of inner factor (i.e., Feeding time) removed due to NAs.
-
 df_original$Year_centered <- df_original$Year-mean(df_original$Year)
+MV[[3]] <- rma.mv(yi, VCV,random = ~ Outcome | Study, mods= ~  0 + Outcome +
+                 Outcome:(Year_centered + vi),
+                        data=df_original,slab = Study, method="REML",test="t",
+                        dfs="contain", level=95) 
+MV[[3]] <- robust(MV[[1]], cluster = df_original$Study, clubSandwich = TRUE,verbose=TRUE)
+
 
 MV[[4]] <- rma.mv(yi, VCV,random = ~ Outcome | Study, mods= ~  0 + Outcome +
-                 Outcome:(ParticleSizeMean + Concentration_mg_L + ExposureDurationDays*DevelopmentalStage + Year_centered + vi),
+                 Outcome:(ParticleSizeMean + ExposureDurationDays*DevelopmentalStage),
                         data=df_original,slab = Study, method="REML",test="t",
-                        dfs="contain", level=95) #it will only keep complete cases
-#Aviso: 84 rows with NAs omitted from model fitting.Aviso: Redundant predictors dropped from the model.Aviso: One or more levels of inner factor (i.e., Feeding time) removed due to NAs.
+                        dfs="contain", level=95)
 
 #save(MV, VCV, df_original, VCVrho, file = "MV_workspace.RData")
 ```
@@ -378,9 +375,9 @@ print("Multivariate of outcomes")
 summary(MV[[1]])
 print("Multivariate of outcomes with robust variance")
 summary(MV[[2]])
-print("Multivariate of outcomes with moderators")
+print("Multivariate of outcomes with publication bias correction")
 summary(MV[[3]])
-print("Multivariate of outcomes with moderators and publication bias")
+print("Multivariate of outcomes with moderators - concentration not included due to convergence issues")
 summary(MV[[4]])
 ```
 
