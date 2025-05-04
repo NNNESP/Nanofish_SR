@@ -92,6 +92,21 @@ df_original <- read.csv(file,  header = TRUE, stringsAsFactors = TRUE, na.string
 df_original$ESid <- rep("ES", nrow(df_original))
 df_original$ESid <- paste(df_original$ESid, c(1:nrow(df_original)), sep = "")
 
+
+outcomeslist = c("AChE activity", 
+                 "CAT activity",
+                 "SOD activity",
+                 "GPx activity",
+                 "GST activity",
+                 "GSH content",
+                 "ROS levels",
+                 "Lipid peroxidation",
+                 "Sensory-motor function",
+                 "Motor function",
+                 "Predatory performance",
+                 "Speed during feeding",
+                 "Feeding time")
+
 # check classes
 str(df_original)
 ```
@@ -108,34 +123,7 @@ df_original$DevelopmentalStage<-factor(
       sub(".* ", "", df_original$DevelopmentalStage), # remove numbers
       levels = c("Embrio","Larva","Juvenile","Adult","Unclear"))
 df_original$Outcome <- factor(df_original$Outcome,
-                              levels = c("Neurochemical outcomes: AChE activity", 
-                                         "Neurochemical outcomes: CAT activity",
-                                         "Neurochemical outcomes: GPx activity",
-                                         "Neurochemical outcomes: GSH content",
-                                         "Neurochemical outcomes: GST activity",
-                                         "Neurochemical outcomes: Lipid peroxidation",
-                                         "Neurochemical outcomes: ROS levels",
-                                         "Neurochemical outcomes: SOD activity",
-                                         "Motor function: Distance",
-                                         "Sensory-motor function: Distance",
-                                         "Feeding behaviour: Predatory performance",
-                                         "Feeding behaviour: Feeding time",
-                                         "Feeding behaviour: Speed during feeding"
-                              ))
-# rename levels
-levels(df_original$Outcome) <- c(       "AChE activity", 
-                                        "CAT activity",
-                                        "GPx activity",
-                                        "GSH content",
-                                        "GST activity",
-                                        "Lipid peroxidation",
-                                        "ROS levels",
-                                        "SOD activity",
-                                        "Motor function: Distance",
-                                        "Sensory-motor function: Distance",
-                                        "Predatory performance",
-                                        "Feeding time",
-                                        "Speed during feeding")
+                              levels = outcomeslist)
 
 # numeric variables transformation
 # df_original$ExposureDurationDays<-log10(df_original$ExposureDurationDays+1) 
@@ -143,9 +131,6 @@ levels(df_original$Outcome) <- c(       "AChE activity",
 # df_original$ParticleSizeMean    <-log10(df_original$ParticleSizeMean+1)
 
 str(df_original)
-
-outcomeslist = sort(unique(df_original$Outcome))
-
 ```
 
 ### Calculate Effect Size
@@ -241,7 +226,7 @@ for (outcome in outcomeslist){
 ## Orchard
 
 ```{r echo=TRUE}
-colormap <-c("AChE activity" = "#ff65acff", 
+colormap1 <-c("AChE activity" = "#ff65acff", 
             "CAT activity" = "#f962ddff", 
             "GPx activity" = "#d575feff", 
             "GSH content" = "#8b93ffff", 
@@ -249,8 +234,8 @@ colormap <-c("AChE activity" = "#ff65acff",
             "Lipid peroxidation"= "#00bbdaff",
             "ROS levels"= "#00c1abff",
             "SOD activity"= "#00be70ff",
-            "Motor function: Distance" = "#24b700ff",
-            "Sensory-motor function: Distance" = "#8cab00ff",
+            "Motor function" = "#24b700ff",
+            "Sensory-motor function" = "#8cab00ff",
             "Predatory performance" = "#be9c00ff",
             "Feeding time" = "#e18a00ff",
             "Speed during feeding" = "#f8766dff"
@@ -263,7 +248,7 @@ m <- mRE[[paste0(mname1,"_RobVar")]]
 I2<-i2_ml(m)
   
 if (n<=8){
-scalerange<-c(-30,25)
+scalerange<-c(-30,30)
 }else{
   scalerange<-c(-11,13)
 }
@@ -271,8 +256,8 @@ scalerange<-c(-30,25)
 p[[n]]<-orchard_plot(m, mod = "1", xlab = "Effect size", group = "Study", k = TRUE, g = TRUE, transfm = "none", angle = 0,legend.pos = "top.out") + 
    annotate(geom = "text", x = 0.6, y = 5, label = paste0("italic(I)^{2} == ", round(I2[1],1), "*\"%\""), color = "black", parse = TRUE, size = 3) +
   scale_x_discrete(labels = c(outcomeslist[[n]])) +
-  scale_fill_manual(values = colormap[[n]]) +
-  scale_colour_manual(values = colormap[[n]])+
+  scale_fill_manual(values = colormap1[[n]]) +
+  scale_colour_manual(values = colormap1[[n]])+
   scale_size_continuous(range = c(1, 7), limits = c(0.1, 8), labels = scales::number_format(accuracy = 0.1))+
   scale_y_continuous(limits = scalerange)+
   theme(legend.position = "right" ,
@@ -297,6 +282,22 @@ Reduce('+', p[9:length(outcomeslist)]) + plot_layout(design = layout)
 # Multivariada
 ## Alluvial plot
 ```{r echo=FALSE}
+colormap <-c("Embrio" = "khaki", 
+            "Larva" = "lightgreen", 
+            "Juvenile" = "lightskyblue", 
+            "Adult" = "salmon", 
+            "Unclear" = "plum",
+            "ExposureDurationDays"= "cornflowerblue",
+            "ParticleSizeMean"= "chartreuse4",
+            "Concentration_mg_L"= "#fa0079ff",
+            "Aminoplast" = "chocolate4",
+            "PE" = "#0089faff",
+            "PET" = "#00faedff",
+            "PLA" = "#00fa29ff",
+            "PS" = "#faf200ff",
+            "PVC" = "#fa9a00ff",
+            "Publication year"="black",
+            "Variance"="navyblue")
 ### draw an alluvial plot to show the heterogeneous experimental designs of the studies included in the meta-analysis
 
 #make a dataframe of frequencies for selected variables
@@ -325,6 +326,7 @@ ggplot(data = freq, aes(axis1 = Stage, axis2 = Duration,  axis3 = Size, axis4 = 
 # alluvil_plot
 # dev.off()
 ```
+
 ```{r, echo=FALSE}
 #pdf(file='Figures/Boxplot_ESbyOutcome.pdf') # Open SVG device with specific file name
 df_original %>%
