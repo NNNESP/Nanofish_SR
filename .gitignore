@@ -39,3 +39,11 @@ rsconnect/
 *.png
 *.csv
 workshop_2023_ma_esmarconf-master
+/Revisão Sistemática
+mvMetaAnalyse/descriptives.txt
+mvMetaAnalyse/mvMetaAnalysis_SMDs.txt
+/mvMetaAnalyse/Figures
+/mvMetaAnalyse/Tables
+mvMetaAnalyse/workspace.RData
+mvMetaAnalyse/token
+mvMetaAnalyse/NANOFish review.lnk

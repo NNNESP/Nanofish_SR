@@ -1,0 +1,971 @@
+---
+title: "Nanofish_mv"
+author: "Querusche"
+date: "2024"
+output:
+  pdf_document: default
+  html_document: default
+  df_print: paged
+editor_options: 
+  markdown: 
+    wrap: 72
+  chunk_output_type: inline
+---
+
+## Tutorials from:
+
+-   Y. Yang, M. Macleod, J. Pan, M. Lagisz, S. Nakagawa, 2023. Advanced
+    methods and implementations for the meta-analyses of animal models:
+    current practices and future recommendations. Neurosci. Biobehav.
+    Rev., 146 <https://doi.org/10.1016/j.neubiorev.2022.105016>
+
+-   Yefeng Yang, Malcom Macleaod, Jinming Pan, Malgorzata Lagisz,
+    Shinichi Nakagawa, 2022. The current practices of meta-analyses
+    using animal models, and underappreciated opportunities using
+    advanced methods: multilevel models and robust variance estimation.
+    Neuroscience & Biobehavioral Reviews.
+    <https://doi.org/10.1016/j.neubiorev.2022.105016>
+
+-   Wolfgang Viechtbauer <https://www.metafor-project.org>
+    <https://wviechtb.github.io/metafor/reference/misc-recs.html>
+    <https://wviechtb.github.io/meta_analysis_books/>
+
+-   Shinichi Nakagawa, Malgorzata Lagisz, Rose E. O’Dea, Patrice
+    Pottier, Joanna Rutkowska, Alistair M. Senior, Yefeng Yang, Daniel
+    W.A. Noble. 2023. orchaRd 2.0: An R package for visualizing
+    meta-analyses with orchard plots. Methods in Ecology and Evolution,
+    <https://doi.org/10.1111/2041-210X.14152> (preprint = EcoEvoRxiv,
+    <https://doi.org/10.32942/X2QC7>).
+    <https://daniel1noble.github.io/orchaRd/>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(fig.pos = "H", out.extra = "")
+
+devtools::install_github("daniel1noble/orchaRd", ref = "main", force = TRUE)
+pacman::p_load(devtools, tidyverse, metafor, patchwork, R.rsp, orchaRd, emmeans,
+    ape, phytools, flextable)
+
+library(clubSandwich)
+library(GGally)
+library(ggplot2)
+library(grid)
+library(gridExtra)
+library(pacman)
+library(metafor)
+library(dplyr)
+library(tidyverse)
+library(gt) # https://posit.co/blog/great-looking-tables-gt-0-2/
+library(metacart)
+
+```
+
+## Preparing data
+
+1 - load data 2 - configures factor and numeral variables 3 -
+transformations of numeral variables
+
+NA = not applicable Unclear = unavailable information on the paper
+
+```{r Load data, echo=FALSE}
+
+source("functions_Nanofish.R",encoding = "UTF-8")
+m = vector("list",3)
+names(m) <- c("null","forest","random_effects")
+
+df_original<-load_prep_df("mvMetaAnalysis.csv")
+
+datainfo <- summary(df_original)
+# write.table(datainfo, "descriptives.txt", sep="\t")
+
+variables <- variable.names(df_original)
+outcomeslist = sort(unique(df_original$Outcome))
+moderatorslist = c(   "Species",
+                      "Sex",
+                      "DevelopmentalStage",
+                      "ParticleMaterial", 
+                      "ParticleShape", 
+                      "ParticleSizeMean",
+                      "AdministrationRoute", 
+                      "Concentration_mg_L",
+                      "ExposureDurationDays")
+
+outcomeslist
+moderatorslist
+```
+
+## Calculate effect size
+
+"SMD" for the standardized mean difference (Hedges, 1981) "SMDH" for the
+standardized mean difference with heteroscedastic population variances
+in the two groups (Bonett, 2008, 2009)
+
+UB = to compute unbiased estimates of the sampling variances (equation 9
+in Hedges, 1983)
+
+```{r}
+df_original <- escalc(measure = "SMD", 
+             n1i = n_treat, #n of treatment group
+             n2i = n_ctrl, #n of control group
+             m1i = mean_treat, #mean of treatment group 
+             m2i = mean_ctrl, #mean of control group
+             sd1i = STD_treat, #sd of treatment group
+             sd2i = STD_ctrl, #sd of control group
+             data = df_original, vtype = "UB") 
+write.csv(df_original,file = "mvMetaAnalysis_SMDs.csv")
+```
+
+## Descriptives plots
+
+```{r echo=FALSE}
+#ggpairs(df_original, mapping = aes(color = Shape, alpha = 0.3), columns = moderatorslist,title = "")
+
+#pdf(file='Figures/Boxplot_ESbyOutcome.pdf') # Open SVG device with specific file name
+df_original %>%
+  mutate(class = factor(Outcome, levels = rev(levels(Outcome)))) %>%
+  ggplot( aes(yi, class, fill=class))+ 
+    geom_boxplot() +
+    xlab("ES") + 
+    ylab("") +
+    theme_bw(base_size = 18) +
+    theme(legend.position="none")
+set_plot_dimensions(7, 7)
+# dev.off()
+```
+
+## Null model and data inspection through forest plot
+
+In order to detect anomalies on the data and review the data bank, when
+necessary, first one null model was elaborated for each variable folowed
+by their respective forest plot.
+<https://wviechtb.github.io/metafor/reference/forest.rma.html>
+
+```{r, echo=FALSE, warning=FALSE}
+
+n_outcome = 1
+for(n_outcome in sequence(nlevels(outcomeslist)))
+{
+outcome<-as.character(outcomeslist[n_outcome])
+df <- df_original[ which(df_original$Outcome == outcome ),]
+df <- df[order(df$DevelopmentalStage,-df$yi),]
+
+### fit random-effects null model
+m$null[[outcome]] <- rma.mv(yi, vi, 
+                                data=df, 
+                                method="ML")
+
+m$forest[[outcome]]<-forest_plot(m$null[[outcome]],outcome,"NULLmodel")
+}
+```
+
+# Random effects model design
+
+## Likelihood ratio tests: Model comparison for appropriate random-effect structure
+
+Random effects candidates:
+
+-   Effect size cluster
+
+-   Study
+
+-   Study cluster
+
+> when using AIC criteria use maximum likelihood (ML) rather than
+> restricted maximum likelihood (REML)
+
+```{r, echo=FALSE}
+# create variable to store random effects model
+models = c("ExpID",
+              "StudyID",
+              "StudyCluster",
+              "StudyIDExpID",
+              "StudyClusterStudyIDExpID")
+
+mRF = vector("list",5) ; names(mRF) <- models
+anova = vector("list",5) ; names(anova) <- models
+
+mRF$ExpID =        vector("list",nlevels(outcomeslist))
+mRF$StudyID =      vector("list",nlevels(outcomeslist))
+mRF$StudyCluster = vector("list",nlevels(outcomeslist))
+mRF$StudyIDExpID = vector("list",nlevels(outcomeslist))
+mRF$StudyClusterStudyIDExpID = vector("list",nlevels(outcomeslist))
+
+# run model, inspect results, select model random effects structure for each variable, then plot the profile for each random effect included.
+for(outcome in outcomeslist)
+  {
+df <- df_original[ which(df_original$Outcome==outcome ),]
+df <- df[order(df$DevelopmentalStage,-df$yi),]
+
+mRF$ExpID[[outcome]] <- rma.mv(yi, vi, 
+            random = list(~ 1 | EScluster), 
+            data=df, 
+            method="ML")
+mRF$StudyID[[outcome]] <- rma.mv(yi, vi, 
+            random = ~ 1 | Study, 
+            data=df, 
+            method="ML")
+mRF$StudyCluster[[outcome]] <- rma.mv(yi, vi, 
+            random = ~ 1 | StudyCluster, 
+            data=df, 
+            method="ML")
+mRF$StudyIDExpID[[outcome]] <- rma.mv(yi, vi, 
+            random = ~ 1 | Study/EScluster, 
+            data=df, 
+            method="ML")
+mRF$StudyClusterStudyIDExpID[[outcome]] <- rma.mv(yi, vi, 
+            random = ~ 1 | StudyCluster/Study/EScluster, 
+            data=df, 
+            method="ML")
+}
+rm("df")
+```
+
+## Table of results: Likelihood ratio tests
+
+```{r, echo=TRUE}
+# Inspect Results
+## create table of results
+columns = c("LRT1","pval1","LRT2","pval2","LRT3","pval3","LRT4","pval4",
+            "LRT5","pval5","LRT6","pval6","LRT7","pval7") 
+rst_tbl_RF = data.frame(matrix(nrow = length(outcomeslist), ncol = length(columns))) 
+colnames(rst_tbl_RF) = columns
+rownames(rst_tbl_RF) = outcomeslist
+
+## run analysis
+for(outcome in outcomeslist)
+  {
+anova$ExpID_null           <- anova.rma(mRF$ExpID[[outcome]],        m$null[[outcome]])
+anova$StudyID_null         <- anova.rma(mRF$StudyID[[outcome]],      m$null[[outcome]])
+anova$StudyCluster_null    <- anova.rma(mRF$StudyCluster[[outcome]], m$null[[outcome]])
+anova$StudyIDExpID_ExpID   <- anova.rma(mRF$StudyIDExpID[[outcome]], mRF$ExpID[[outcome]])
+anova$StudyIDExpID_StudyID <- anova.rma(mRF$StudyIDExpID[[outcome]], mRF$StudyID[[outcome]])
+anova$StudyIDExpID_Cluster <- anova.rma(mRF$StudyIDExpID[[outcome]], mRF$StudyCluster[[outcome]])
+anova$Full_StudyIDExpID    <- anova.rma(mRF$StudyClusterStudyIDExpID[[outcome]],mRF$StudyIDExpID[[outcome]])
+
+rst_tbl_RF[outcome,] = round(c( anova$ExpID_null$LRT,           anova$ExpID_null$pval, 
+                                anova$StudyID_null$LRT,         anova$StudyID_null$pval,
+                                anova$StudyCluster_null$LRT,    anova$StudyCluster_null$pval,
+                                anova$StudyIDExpID_ExpID$LRT,   anova$StudyIDExpID_ExpID$pval,
+                                anova$StudyIDExpID_StudyID$LRT, anova$StudyIDExpID_StudyID$pval,
+                                anova$StudyIDExpID_Cluster$LRT, anova$StudyIDExpID_Cluster$pval,
+                                anova$Full_StudyIDExpID$LRT,    anova$Full_StudyIDExpID$pval),3)}
+
+rst_tbl_RF = cbind(outcomeslist,rst_tbl_RF)
+
+gt_tbl <-
+  gt(rst_tbl_RF,rowname_col = "Outcome",) |>
+  tab_spanner(label = "Exp. vs Null",         columns = c("LRT1", "pval1")) |>
+  tab_spanner(label = "Study vs Null",        columns = c("LRT2", "pval2")) |>
+  tab_spanner(label = "Cluster vs Null",      columns = c("LRT3", "pval3")) |>
+  tab_spanner(label = "Study+Exp. vs Exp.",   columns = c("LRT4", "pval4")) |>
+  tab_spanner(label = "Study+Exp. vs Study",  columns = c("LRT5", "pval5")) |>
+  tab_spanner(label = "Study+Exp. vs Cluster",columns = c("LRT6", "pval6")) |>
+  tab_spanner(label = "All vs Study+Exp.",    columns = c("LRT7", "pval7")) |>
+  cols_label("LRT1" = "LRT","pval1" = "pval",  "LRT2" = "LRT","pval2" = "pval",
+             "LRT3" = "LRT","pval3" = "pval",  "LRT4" = "LRT","pval4" = "pval",
+             "LRT5" = "LRT","pval5" = "pval",  "LRT6" = "LRT","pval6" = "pval",
+             "LRT7" = "LRT","pval7" = "pval")|>
+  cols_align(align = "right", columns = 2:13)|>
+  cols_align(align = "left", columns = 1) |>
+  data_color(columns = pval1, rows = pval1< 0.05,target_columns = c("LRT1", "pval1"),palette = "yellow",alpha=0.6)|>
+  data_color(columns = pval2, rows = pval2< 0.05,target_columns = c("LRT2", "pval2"),palette = "yellow",alpha=0.6)|>
+  data_color(columns = pval3, rows = pval3< 0.05,target_columns = c("LRT3", "pval3"),palette = "yellow",alpha=0.6)|>
+  data_color(columns = pval4, rows = pval4< 0.05,target_columns = c("LRT4", "pval4"),palette = "yellow",alpha=0.6)|>
+  data_color(columns = pval5, rows = pval5< 0.05,target_columns = c("LRT5", "pval5"),palette = "yellow",alpha=0.6)|>
+  data_color(columns = pval6, rows = pval6< 0.05,target_columns = c("LRT6", "pval6"),palette = "yellow",alpha=0.6)|>
+  data_color(columns = pval7, rows = pval7< 0.05,target_columns = c("LRT7", "pval7"),palette = "yellow",alpha=0.6)
+
+gt_tbl 
+
+#rm(list = ls(pat = "anova"))
+```
+
+**Hypothesis 1:** the SMD is homogeneous among all levels of experiment,
+study or research cluster.
+
+For Predatory performance any parameter does not fit the data
+significantly better than the null model. For all other variables SMD
+varies significantly at least among studies or experiment and one new
+term should be added in the model to account for this variability.
+
+**Hypothesis 2:** the SMD is homogeneous among all levels of Study +
+Experiment when at least one new parameter (experiment, study or
+research cluster) if a) Experiment ID, b) Study or c) Research Cluster
+is considered.
+
+a)  Study + Experiment ID does not fit the data significantly better
+    than the only Experiment ID model for GSH content, Motor function:
+    Distance, Feeding time and Speed during feeding
+
+b)  Study + Experiment ID does not fit the data significantly better
+    than the only Study model for almost all variables, except for AChE
+    activity, GPx activity and Sensory-motor function: Distance
+
+c)  Study + Experiment ID does not fit the data significantly better
+    than the only Research Cluster model for half of the variables.
+
+Although Experiment ID only fit the data well for GSH content, Motor
+function: Distance, Feeding time and Speed during feeding, Study
+variable only captures the variability of the data for most of the
+variables when compared to a two level model (Study + Experiment ID).
+So, for almost all variables (except Predatory performance) the Study is
+an important random factor.
+
+**Hypothesis 3:** the SMD is homogeneous among all levels of Study +
+Experiment + Research Cluster if variability due to Study + Experiment
+ID is already included.
+
+The tree level model does not fit the data significantly better than the
+two level for any of the variables.
+
+Even so, one must consider the assumptions behind the decision to
+include or exclude one random variable: the presence of correlated data.
+
+So we decided to proceed with results for Study+Exp random term model
+for all variables, except Feeding time and Feeding speed that have one
+experiment by study and include **minimal model results as supplementary
+material**.
+
+```{r, echo=TRUE}
+## keep chosen Random Effects model
+for(outcome in outcomeslist)
+{
+  if (outcomeslist[[12]]==outcome || outcomeslist[[13]]==outcome)
+    {m$random_effects[[outcome]] <- mRF$StudyID[[outcome]]  }
+  else
+    {m$random_effects[[outcome]] <- mRF$StudyIDExpID[[outcome]]  }
+}
+```
+
+## Profile Likelihood Plots of $\sigma^2$: Are the variance components identifiable?
+
+> When profile likelihood plots are peaked at the respective parameter
+> estimates and the log likelihoods quickly decrease (i.e., become more
+> negative) as the values of the components are moved away from the
+> actual REML estimates, it shows that that the variance component is
+> identifiable. When there are missing points the model did not converge
+> for some of the profile points. When large parts of the profiles are
+> flat, indicates that the model is overparameterized.
+>
+> Profile likelihood plots of the variance components are shown in
+> Figure A (Model 1) and Figure B (Model 2). In this procedure, $σ_1^2$
+> (variance at the study level) and $σ_2^2$ (variance at the sample
+> level) were fixed at different values (i.e., all the positions of the
+> dots on the x-axis). For each value of $σ_1^2$ and $σ_2^2$, the
+> (logarithm of the) likelihood over the remaining model parameters,
+> such as the fixed effects, was estimated (Viechtbauer, 2010). This
+> means it was estimated how likely the values of these parameters are
+> given the observed data. Less negative values of the logarithm
+> indicate a higher likelihood than more negative values. It can be seen
+> that the likelihood was estimated to be the highest for the values of
+> $σ_1^2$ and $σ_2^2$ that had been estimated in the original models
+> (0.31 and 0.21 for Model 1, and 0.49 and 0.05 for Model 2). This, and
+> also the fact that the log-likelihoods become more negative as the
+> values of σ2 move away from the parameter estimates, suggest that we
+> can be "fairly confident" that our meta-analytic models could identify
+> the variance components (Viechtbauer, 2017).
+
+```{r, echo=FALSE,fig.height=6, fig.width=3}
+
+for(outcome in outcomeslist)
+{
+  pdf(file=paste('Figures/Profile likelihood plot_', 
+                 str_replace(outcome,':','_'),'.pdf',sep=""),paper="A4")
+  
+  switch(length(m$random_effects[[outcome]]$sigma2), 
+       
+  {par(mfrow=c(3,1))
+    profile(m$random_effects[[outcome]] , sigma2=1)
+    title(sub = "Study",cex.sub = 1)
+    mtext(outcomeslist[outcome],cex=0.6,side = 3, line = -1.2, outer = TRUE)},
+    
+  {par(mfrow=c(3,1))
+    profile(m$random_effects[[outcome]] , sigma2=1)
+    title(sub = "Study",cex.sub = 1)
+    profile(m$random_effects[[outcome]] , sigma2=2)
+    title(sub = "ES cluster",cex.sub = 1)
+    mtext(outcomeslist[outcome],cex=0.6,side = 3, line = -1.2, outer = TRUE)},
+  
+  {par(mfrow=c(3,1))
+   profile(m$random_effects[[outcome]] , sigma2=1)
+    title(sub = "Study Cluster",cex.sub = 1)
+    profile(m$random_effects[[outcome]] , sigma2=2)
+    title(sub = "Study",cex.sub = 1)
+    profile(m$random_effects[[outcome]] , sigma2=3)
+    title(sub = "ES cluster",cex.sub = 1)
+    mtext(outcomeslist[outcome],cex=0.6,side = 3, line = -1.2, outer = TRUE)})
+  
+  dev.off() 
+   }
+```
+
+Profile likelihood plots shows if the variance component is identifiable
+when there is a peak on the parameter estimates
+(<https://wviechtb.github.io/metafor/reference/profile.rma.html#interpreting-profile-likelihood-plots>).
+
+The variance components proposed for all variables were identifiable?
+
+Feeding time and speed during feeding: $\sigma_1^2$ for study random
+effects. Inclusion of ES cluster for variables feeding time and speed
+during feeding resulted in over-fitting.
+
+All other variables: $\sigma_1^2$ for study and $\sigma_2^2$ for ES
+cluster random effects.
+
+## Extended possible random factors
+
+Particle Material: Due to chemical composition
+
+```{r}
+# rodar próximo chunck antes desse
+
+columns = c("LRT (PM)","pval (PM)") 
+rst_tbl = data.frame(matrix(nrow = 0, ncol = length(columns))) 
+colnames(rst_tbl) = columns
+
+for(n_outcome in sequence(nlevels(outcomeslist)))
+  {
+  skip_to_next <- FALSE
+  
+  df1 <- select(df_original,c("StudyCluster","Study","Year",
+                     "EScluster","Species","ParticleMaterial","yi","vi"))
+  df1<- df1[complete.cases(df1),]
+  
+  mRF$m3 <- rma.mv(yi, vi, 
+              random = random_factors[[n_outcome]], 
+              data=df1, 
+              method="ML")
+  
+  mRF$m4 <- rma.mv(yi, vi, 
+              random = list(random_factors[[n_outcome]], ~ 1 | ParticleMaterial), 
+              data= df1, 
+              method="ML")
+  
+  # for ParticleMaterial versus none extra random factors with smaller data set
+  if (n_distinct(df1$ParticleMaterial)>=2)
+   {resRF4_3 = anova.rma(mRF$m4,mRF$m3)}
+  else
+   {resRF4_3$LRT  = NA
+    resRF4_3$pval = NA}
+  
+  rst_tbl[n_outcome,] = round(c(resRF4_3$LRT, resRF4_3$pval),3)
+  #rm(list = ls(pat = "res"))
+   }
+
+rownames(rst_tbl) = outcomeslist
+print(rst_tbl)
+
+#rm(list = ls(pat = "mRF"))
+#rm("df1")
+```
+
+Even if particle material could contribute with the random effects term,
+on this data set its contribution is not significant to justify the
+increase in the model complexity for any of the variables.
+
+# Random effects with robust variance model (RERV)
+
+Level 1 - Sampling
+
+Level 2 - Effect size cluster: within studies variability
+
+(Level 3 - Study cluster: between studies variability)
+
+$ES_{[i]} = \beta_0 +u_{b[j]}+u_{w[i]}+e_{[i]}$,
+
+$ES_{[i]}$ = an effect size estimate
+
+i = effect size
+
+j = study
+
+$\beta_0 = E[ES_{[i]}]$ = overall mean
+
+$u_{b[j]}$ = between-studies effect for study j; study-specific
+heterogeneity ($\sigma^2_b$)
+
+$u_{w[i]}$ = within-study effect for effect size i in study j;
+effect-size-specific heterogeneity ($\sigma^2_w$)
+
+$\sigma^2_{total}=\sigma^2_b+\sigma^2_w$ total variance, so
+heterogeneity can be explained by between or within studies effects
+
+$e_{[i]}$ = sampling error; sampling variance
+($v_i = \sigma^2_{sampling}$)
+
+**SYRCLE PROTOCOL:** A meta-analysis will be performed with a minimum of
+5 studies for the same outcome.
+
+Since this was the criteria used to select the variables to be analysed,
+all variables were included.
+
+## Random Effects formula for each variable
+
+```{r, echo=TRUE}
+random_factors = list(formula(~1 | Study/EScluster),    # n_outcome = 1,
+                      formula(~1 | Study),              # n_outcome = 2,
+                      formula(~1 | Study/EScluster),    # n_outcome = 3,
+                      formula(~1 | Study),              # n_outcome = 4,
+                      formula(~1 | Study),              # n_outcome = 5,
+                      formula(~1 | Study),              # n_outcome = 6,
+                      formula(~1 | Study),              # n_outcome = 7, 
+                      formula(~1 | Study),              # n_outcome = 8,
+                      formula(~1 | Study),              # n_outcome = 9,
+                      formula(~1 | Study/EScluster),    # n_outcome = 10,
+                      formula(~1 | Study),              # n_outcome = 11, (null model)
+                      formula(~1 | Study),              # n_outcome = 12,
+                      formula(~1 | Study))              # n_outcome = 13
+
+random_factors = list(formula(~1 | Study/EScluster),              # n_outcome = 1,
+                      formula(~1 | Study/EScluster),              # n_outcome = 2,
+                      formula(~1 | Study/EScluster),              # n_outcome = 3,
+                      formula(~1 | Study/EScluster),              # n_outcome = 4,
+                      formula(~1 | Study/EScluster),              # n_outcome = 5,
+                      formula(~1 | Study/EScluster),              # n_outcome = 6,
+                      formula(~1 | Study/EScluster),              # n_outcome = 7, 
+                      formula(~1 | Study/EScluster),              # n_outcome = 8,
+                      formula(~1 | Study/EScluster),              # n_outcome = 9,
+                      formula(~1 | Study/EScluster),              # n_outcome = 10,
+                      formula(~1 | Study/EScluster),              # n_outcome = 11,
+                      formula(~1 | Study),                        # n_outcome = 12,
+                      formula(~1 | Study))                        # n_outcome = 13
+
+names(random_factors) <- outcomeslist
+# - = change of model not recommended 
+# Study = can be a Study only analysis
+# null = random effects could be omitted according to Likelihood ratio tests
+```
+
+```{r}
+# Create variable to store random effects with robust variance estimation models
+m1 = vector("list",5)
+names(m1) <- c("null_REML","RE_REML","RERV_REML","metaCART","MIXED_REML")
+
+rows = c("k estimates","N studies","ES","SE","ci.lb","ci.ub","pi.lb","pi.ub","I² total","sigma²Study","sigma²ES cluster","Q","Q p-value")
+predicted_intervals = data.frame(matrix(nrow=length(rows), ncol=length(outcomeslist)))
+colnames(predicted_intervals) = outcomeslist
+rownames(predicted_intervals) = rows
+
+heterogeneity = vector("list")
+
+for(outcome in outcomeslist)
+{
+  # Select data
+  df <- df_original[ which(df_original$Outcome==outcome ),]
+  df <-df[order(df$DevelopmentalStage,-df$yi),]
+  
+  
+  # fit null model with REML
+  m1$null_REML[[outcome]] <- rma.mv(yi, vi,
+              data=df, 
+              slab = Study,
+              method="REML",  
+              test="t", dfs="contain", level=95)
+  
+  # fit multilevel model with appropriate fixed/random effects
+  m1$RE_REML[[outcome]] <- rma.mv(yi, vi,
+              random = random_factors[[outcome]],
+              data=df, 
+              slab = Study,
+              method="REML",  
+              test="t", dfs="contain", level=95)
+  
+  # apply cluster-robust inference methods (robust variance estimation) using the improved methods from the clubSandwich package
+   m1$RERV_REML[[outcome]] <- robust(m1$RE_REML[[outcome]], cluster = Study, clubSandwich = TRUE)
+
+ # Heterogeneity
+ heterogeneity[[outcome]]$i2     = round(i2_ml(m1$RERV_REML[[outcome]]),2)
+ heterogeneity[[outcome]]$sigma2 = round(m1$RERV_REML[[outcome]]$sigma2,2)
+  
+  # compute predicted outcomes (with corresponding CIs) as needed
+  pi <- predict(m1$RERV_REML[[outcome]])
+  
+  if (length(heterogeneity[[outcome]]$sigma2)==1)
+  {heterogeneity[[outcome]]$sigma2[[2]]=NA}
+  
+  predicted_intervals[[outcome]] <- round(c(m1$RERV_REML[[outcome]]$k,
+                                             m1$RERV_REML[[outcome]]$n,
+                                             pi$pred, pi$se, pi$ci.lb, 
+                                             pi$ci.ub, pi$pi.lb, pi$pi.ub, 
+                                             heterogeneity[[outcome]]$i2[[1]],
+                                             heterogeneity[[outcome]]$sigma2[[1]],
+                                             heterogeneity[[outcome]]$sigma2[[2]],
+                                             m1$RERV_REML[[outcome]]$QE,
+                                             m1$RERV_REML[[outcome]]$QEp
+                                             ),3)
+  
+  # test sets of coefficients / linear combinations as needed
+  
+  # anova(res_rob)
+  
+  # forest
+  forest_plot(m1$RERV_REML[[outcome]],outcome,"RERV_REML_model")
+}
+
+predicted_intervals = cbind(rows,predicted_intervals)
+```
+
+```{r}
+outcome <- outcomeslist[[3]]
+print(outcome)
+rbind(cbind('ES = ',    length(m1$null_REML[[outcome]]$data$EScluster)),
+cbind('ES cluster = ', length(unique(m1$null_REML[[outcome]]$data$EScluster))),
+cbind('Study = ',      length(unique(m1$null_REML[[outcome]]$data$Study))))
+```
+
+## Results table
+
+```{r}
+
+
+gt_tbl <-
+  gt(predicted_intervals,rowname_col = "rows",) |>
+  tab_spanner(label = "Neurochemical outcomes" ,columns = seq(1:9)) |>
+  tab_spanner(label = "Motor function"        ,columns = c(10)) |>
+  tab_spanner(label = "Sensory motor function",columns = c(11)) |>
+  tab_spanner(label = "Feeding behaviour"     ,columns = c(12:14)) |>
+  cols_align(align = "center", columns = 2:14)|>
+  cols_align(align = "left", columns = 1)|>
+  cols_width(2:14 ~ px(100))
+#  tab_style(style = cell_text(align = "center"),
+#    locations = cells_column_labels(columns = 2:14))
+
+#for (outcome in outcomeslist) {
+#  gt_tbl <- gt_tbl |>
+#    cols_label(!!outcome := sub(".*:\\s*","",outcome))
+  
+#  i2 <- var.comp(m1$RERV_REML[[outcome]])
+#  plot(i2)
+#}
+
+gt_tbl 
+```
+
+## Orchard plot
+
+orchard plot displays the prediction interval of the overall effect
+(bold whiskers), the number of effect sizes (k) and the number of
+studies (the number in the bracket).
+
+k = number of ES
+
+g = number of studies
+
+```{r warning=FALSE}
+#heterogeneity
+
+I_yposition = as.list(c(-20,20,-10,5,10,15,20,5,-5,1,0.5,5,5))
+names(I_yposition)=outcomeslist
+
+for(outcome in outcomeslist)
+{ 
+  pdf(file=paste('Figures/Orchard plot_',str_replace(outcome,':','_'),"_",'RERV_model','.pdf',sep=""),paper="A4")
+  
+  print(orchardRE_model(m1$RERV_REML[[outcome]],outcome,I_yposition,heterogeneity[[outcome]]))
+  
+  dev.off()
+}
+
+#![A local image](r-project.png)
+```
+
+# Random effects Meta-CART
+
+> when the number of included studies is small, meta-regression suffers
+> from low statistical power to examine all moderators simultaneously
+> (Tanner-Smith &
+> Grant, [2018](https://link.springer.com/article/10.3758/s13428-020-01360-0#ref-CR37 "Tanner-Smith, E. E., & Grant, S. (2018). Meta-analysis of complex interventions. Annual Review of Public Health, 39, 135– 151.")).
+> Second, meta-regression has difficulties in exploring interaction
+> effects among moderators since it requires moderators and their
+> interactions to be specified beforehand. When there are no a priori
+> hypotheses available, the number of all possible interaction terms are
+> usually too large to be included in one model. The interaction
+> effects, however, can provide valuable information to answer questions
+> such like “do these intervention components amplify or attenuate each
+> other’s effectiveness?” and “which combination of study
+> characteristics results in the highest effectiveness?”.
+>
+> Li, X., Dusseldorp, E., Su, X. *et al.* Multiple moderator
+> meta-analysis using the R-package Meta-CART. *Behav Res* **52**,
+> 2657–2673 (2020). <https://doi.org/10.3758/s13428-020-01360-0>
+
+```{r}
+# “which combinations of (categories of) moderators are influential?”
+outcomeslist2 <- outcomeslist[c(1,2,3,5,6,7,8)]
+
+for(outcome in outcomeslist2)
+{
+  # Select data
+  df <- df_original[ which(df_original$Outcome==outcome ),]
+  df <-df[order(df$DevelopmentalStage,-df$yi),]
+  
+  print(outcome)
+  
+  m1$metaCART[[outcome]] <- REmrt(yi ~ DevelopmentalStage
+                                  + ParticleMaterial + ParticleShape + ParticleSizeMean
+                                  + AdministrationRoute + Concentration_mg_L 
+                                  + ExposureDurationDays + Sex,
+                                  data = df,
+                                  vi = vi,
+                                  c = 1,
+                                  maxL = 10L, #maximum number of splits in the tree growing process
+                                  minsplit = 6L, # minimum number of studies that must exist in a parent node for a split to be attempted
+                                  cp = 1e-04, #minimal improve of complexity parameter (i.e., QB divided by Q) to make a split in the growing process
+                                  minbucket = 3, # minimum number of studies in any terminal node
+                                  xval = 10, #number of cross-validations in the pruning process
+                                  lookahead = FALSE) # logical indicator to specify whether to apply the look-ahead strategy
+  summary(m1$metaCART[[outcome]])
+  
+  pdf(file=paste('Figures/metaCART_',str_replace(outcome,':','_'),"_",'RE_RELM_model','.pdf',sep=""),paper="A4")
+  print(plot(m1$metaCART[[outcome]]))
+  dev.off()
+}
+```
+
+# Meta-regression (MLME)
+
+Multilevel Model (multilevel model) + Moderators = **multilevel
+mixed-effects model** or multilevel meta-regression model
+
+**SYRCLE PROTOCOL:** Metarregression will be used for outcomes with at
+least 10 experiments.
+
+**DROP:** GSH content, Speed during feeding, Predatory Performance
+
+### Possible moderators or fixed effects to be evaluated as sources of heterogeneity
+
+*neurobiological*
+
+-   **developmental stage (DevelopmentalStage)**
+
+-   species (Species)
+
+-   sex (Sex)
+
+*methodological*
+
+-   **dose (Concentration_mg_L)**
+
+-   rota de administracão (AdministrationRoute)
+
+-   particle
+
+    -   material (ParticleMaterial)
+
+    -   shape (ParticleShape)
+
+    -   **size (ParticleSizeMean)**
+
+-   **exposure duration (ExposureDurationDays)**
+
+*sociological*
+
+-   publication bias (se[i] as moderator)
+
+-   publication year (for publication bias?)
+
+**choosed to evaluate**
+
+Multilevel models are sensitive to correlated variables, the chosen
+variables must be evaluated for multicollinearity. Kim, J.-S., & Frees,
+E. W. (2007). Multilevel modeling with correlated
+effects. *Psychometrika, 72*(4),
+505–533. [https://doi.org/10.1007/s11336-007-9008-1](https://psycnet.apa.org/doi/10.1007/s11336-007-9008-1)
+
+## Mixed effects model
+
+```{r}
+# “which moderators affect ES?” -> meta-regression model 
+outcomeslist3 <- outcomeslist[c(1:3,5:11)]
+number_of_elements<-list()
+# DROP: GSH content (9), Predatory Performance with concentration(10),
+#       Speed during feeding(5), Feeding time(5)
+
+model_mods = list(formula(~ ParticleSizeMean 
+                         + Concentration_mg_L 
+                         + ExposureDurationDays*DevelopmentalStage),
+
+                  formula(~ ParticleSizeMean
+                         + ExposureDurationDays*DevelopmentalStage))
+
+for(outcome in outcomeslist3)
+  {
+  # Select data
+  df <- df_original[ which(df_original$Outcome==outcome ),]
+  df <-df[order(df$DevelopmentalStage,-df$yi),]
+  df <- select(df, c("Year", "Study", "EScluster", "ExposureDurationDays",
+                "DevelopmentalStage", "ParticleSizeMean", "Concentration_mg_L","yi", "vi"))
+  df<- df[complete.cases(df),]
+  
+  number_of_elements[[outcome]] <- rbind(cbind('ES = ',    length(df$yi)),
+    cbind('ES cluster = ', length(unique(df$EScluster))),
+    cbind('Study = ',      length(unique(df$Study))))
+  
+  # fit multilevel model with appropriate fixed and random effects
+ if (outcomeslist3[[10]]==outcome ){
+  m1$MIXED_REML[[outcome]] <- rma.mv(yi, vi,random = random_factors[[outcome]],    
+                      mods = model_mods[[2]], # without concentration
+                      data=df,slab = Study,method="REML",test="t", dfs="contain", level=95)
+  }
+  else {
+  m1$MIXED_REML[[outcome]] <- rma.mv(yi, vi,random = random_factors[[outcome]],    
+                      mods = model_mods[[1]],
+                      data=df,slab = Study,method="REML",test="t", dfs="contain", level=95)
+  }
+
+}
+  
+```
+
+```{r}
+outcome <- outcomeslist3[[5]]
+print(outcome)
+ number_of_elements[outcome]
+
+m1$MIXED_REML[[outcome]]
+
+i2_ml(m1$MIXED_REML[[outcome]])
+
+#Goodness-of-fit index
+r2_ml(m1$MIXED_REML[[outcome]])
+```
+
+```{r}
+m2 <-m2$mixed_2levels[[outcome]]
+coef(summary(m2))
+confint.rma
+```
+
+## Subgroups orchard plots
+
+```{r}
+model<-m2$mixed_exposure[[outcome]]
+orchard_plot(model, group = "Study", mod = "ExposureDurationDays", xlab = "ES")
+```
+
+```{r}
+# “which moderators affect ES?” -> meta-regression model 
+model_mods = as.formula( ~ ExposureDurationDays 
+                         + DevelopmentalStage 
+                         + ParticleSizeMean 
+                         + Concentration_mg_L 
+#                         + ExposureDurationDays*DevelopmentalStage
+#                         + ExposureDurationDays*ParticleSizeMean
+#                         + ExposureDurationDays*Concentration_mg_L
+#                         + DevelopmentalStage*ParticleSizeMean
+#                         + DevelopmentalStage*Concentration_mg_L
+#                         + ParticleSizeMean*Concentration_mg_L 
+                          -1)
+
+
+
+
+m2 = vector("list",2)
+names(m2) <- c("mixed","forest")
+
+rows = c("k estimates","N studies","I² total","sigma²Study","sigma²ES cluster","Q","Q p-value")
+results_table2 = data.frame(matrix(nrow=length(rows), ncol=length(outcomeslist)))
+colnames(results_table2) = outcomeslist
+rownames(results_table2) = rows
+
+heterogeneity2 = vector("list")
+
+for(outcome in outcomeslist[[1]])
+{
+  # Select data
+  df <- df_original[ which(df_original$Outcome==outcome ),]
+  df <-df[order(df$DevelopmentalStage,-df$yi),]
+  df <- select(df, c("Year", "Study", "EScluster", "ExposureDurationDays", "DevelopmentalStage", "ParticleSizeMean", "Concentration_mg_L","yi", "vi"))
+  df<- df[complete.cases(df),]
+  
+  # fit multilevel model with appropriate fixed and random effects
+  m2$mixed[[outcome]] <- rma.mv(yi, vi,
+              random = random_factors[[outcome]],
+              mods = model_mods,
+              data=df, 
+              slab = Study,
+              method="REML",  
+              test="t", dfs="contain", level=95)
+  
+  # apply cluster-robust inference methods (robust variance estimation) using the improved methods from the clubSandwich package
+   m2$rob_mixed[[outcome]] <- robust(m2$mixed[[outcome]], 
+            cluster = m2$mixed[[outcome]]$mf.r[[1]][,1], clubSandwich = TRUE,verbose=TRUE)
+
+ # Heterogeneity
+ heterogeneity2[[outcome]]$i2     = round(i2_ml(m2$mixed[[outcome]]),2)
+ heterogeneity2[[outcome]]$sigma2 = round(m2$mixed[[outcome]]$sigma2,2)
+  
+  # compute predicted outcomes (with corresponding CIs) as needed
+  pi2 <- predict(m2$mixed[[outcome]])
+  
+  if (length(heterogeneity2[[outcome]]$sigma2)==1)
+  {heterogeneity2[[outcome]]$sigma2[[2]]=NA}
+  
+  results_table2[[outcome]] <- round(c(m2$mixed[[outcome]]$k,
+                                             m2$mixed[[outcome]]$n,
+                                             heterogeneity2[[outcome]]$i2[[1]],
+                                             heterogeneity2[[outcome]]$sigma2[[1]],
+                                             heterogeneity2[[outcome]]$sigma2[[2]],
+                                             m2$mixed[[outcome]]$QE,
+                                             m2$mixed[[outcome]]$QEp
+                                             ),2)
+  #Goodness-of-fit index
+  #r2[[n_outcome]] <- r2_ml(res.meta)
+  
+  # test sets of coefficients / linear combinations as needed
+  
+  # anova(res_rob)
+  
+  # forest
+  #m2$mixed[[outcome]]<-forest_plot(m2$mixed[[outcome]],outcome,"Mixed model")
+}
+
+results_table2 = cbind(rows,results_table2)
+```
+
+## Results table
+
+```{r}
+gt_tbl <-
+  gt(results_table2,rowname_col = "rows",) |>
+  tab_spanner(label = "Neurochemical outcomes" ,columns = seq(1:9)) |>
+  tab_spanner(label = "Motor function"        ,columns = c(10)) |>
+  tab_spanner(label = "Sensory motor function",columns = c(11)) |>
+  tab_spanner(label = "Feeding behaviour"     ,columns = c(12:14)) |>
+  cols_align(align = "center", columns = 2:14)|>
+  cols_align(align = "left", columns = 1)|>
+  cols_width(2:14 ~ px(100))
+#  tab_style(style = cell_text(align = "center"),
+#    locations = cells_column_labels(columns = 2:14))
+
+for (outcome in outcomeslist) {
+  gt_tbl <- gt_tbl |>
+    cols_label(!!outcome := sub(".*:\\s*","",outcome))
+}
+
+gt_tbl 
+```
+
+## Orchard plot
+
+```{r}
+#heterogeneity
+
+I_yposition = as.list(c(-20,20,-10,5,10,15,20,5,-5,1,0.5,5,5))
+names(I_yposition)=outcomeslist
+
+for(outcome in outcomeslist)
+{ 
+  pdf(file=paste('Figures/Orchard plot_',str_replace(outcome,':','_'),"_",'REmodel','.pdf',sep=""),paper="A4")
+  
+  print(orchardRE_model(m1$RERV_REML[[outcome]],outcome,I_yposition,heterogeneity[[outcome]]))
+  
+  dev.off()
+}
+```
+
+# Subgroup analysis
+
+```{r}
+#Speed during feeding, Feeding time
+```

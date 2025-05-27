@@ -1,0 +1,484 @@
+---
+title: "Nanofish: Multivariada"
+# AChE activity 1        CAT activity 2         GPx activity 3     GSH content 4  
+# GST activity 5         Lipid peroxidation 6    ROS levels 7       SOD activity 8
+# *Motor function: Distance  9                 Sensory-motor function: Distance 10 
+# Predatory performance 11        [Feeding time 12]       [Speed during feeding 13]
+# rodar para sensory-motor function; 
+output:
+  html_document:
+    cache: false
+    df_print: paged
+    mathjax: "cdn"
+bibliography: references.bib
+---
+
+# Set up environment
+
+## Load libraries
+
+```{r global options, warning=FALSE, include=FALSE}
+pacman::p_load(knitr,
+               rmdformats,
+               metafor,
+               dplyr,
+               ggalluvial,
+               orchaRd, #https://rdrr.io/github/daniel1noble/orchaRd/f/README.md
+               GGally,
+               patchwork,
+               formatR,
+               emmeans,
+               clubSandwich)
+
+## Global options~çjk
+knitr::opts_chunk$set(
+  echo = FALSE, cache = FALSE, prompt = FALSE,
+  tidy = TRUE, comment = NA,
+  message = FALSE, warning = FALSE
+)
+```
+
+## Load functions
+
+```{r load functions, include=FALSE}
+source("bubble_plot.R",encoding = "UTF-8") # adicionado controles para cores por variável categórica, mesmo em gráficos sem o parâmetro "by" na função bubble_plot
+source("var.comp.R",encoding = "UTF-8") # alterado para multinível de 4 níveis
+source("diagnostic_plots.R",encoding = "UTF-8") 
+source("influentialcases_plots.R",encoding = "UTF-8")
+
+# extract values for report in R markdown
+extract_report <- function(m, outcome, RE_formula) {
+  assign("re_formula", deparse(RE_formula), envir = .GlobalEnv)
+  assign("beta", m$beta, envir = .GlobalEnv)
+  assign("se", m$pi$se, envir = .GlobalEnv)
+  assign("tval", m$pi$tval, envir = .GlobalEnv)
+  assign("ci_lb", m$pi$ci.lb, envir = .GlobalEnv)
+  assign("ci_ub", m$pi$ci.ub, envir = .GlobalEnv)
+  assign("pi_lb", m$pi$pi.lb, envir = .GlobalEnv)
+  assign("pi_ub", m$pi$pi.ub, envir = .GlobalEnv)
+  assign("I2_Total", round(m$i2[1], 2), envir = .GlobalEnv)
+  assign("QE", m$QE, envir = .GlobalEnv)
+  assign("QEp", if (m$QEp < 0.001) "< 0.001" else paste("=", round(m$QEp, 3)), envir = .GlobalEnv)
+  
+  sigma2_text <- paste0("$\\sigma^2_{", sub(".*/", "", m$s.names), "} = ", sprintf("%.2f", m$sigma2), "$", collapse = ", ")
+  assign("sigma2", sigma2_text, envir = .GlobalEnv)
+}
+
+additional_results <- function(m) {
+  
+  m[["i2"]] <- i2_ml(m)
+  
+  if (is.null(m$formula.mods)) {
+    m[["pi"]] <- predict(m, digits = 2)
+  }
+  
+  m[["icc"]] <- round(m$sigma2 / sum(m$sigma2), 3)
+  
+  return(m)
+}
+```
+
+## Load data
+
+```{r Load data, include=FALSE}
+file <- "ExtractionRevised_MetaAnalysis.csv"
+
+df_original <- read.csv(file,  header = TRUE, stringsAsFactors = TRUE, na.strings = c("NA"))
+
+# EScluster    = control group cluster
+# StudyCluster = resercher net cluster
+
+# create individual id for each ES
+df_original$ESid <- rep("ES", nrow(df_original))
+df_original$ESid <- paste(df_original$ESid, c(1:nrow(df_original)), sep = "")
+
+
+outcomeslist = c("AChE activity", 
+                 "CAT activity",
+                 "SOD activity",
+                 "GPx activity",
+                 "GST activity",
+                 "GSH content",
+                 "ROS levels",
+                 "Lipid peroxidation",
+                 "Sensory-motor function",
+                 "Motor function",
+                 "Predatory performance",
+                 "Speed during feeding",
+                 "Feeding time")
+
+# check classes
+str(df_original)
+```
+
+### Adjust classes and transformations
+
+```{r Adjust classes and transformations, echo=FALSE}
+# adjust classes
+df_original$StudyID      <- factor(df_original$StudyID)
+df_original$StudyCluster <- factor(df_original$StudyCluster)
+df_original$EScluster    <- factor(df_original$EScluster)
+df_original$ParticleShape<-factor(sub(".* ", "",df_original$ParticleShape)) #remove numbers
+df_original$DevelopmentalStage<-factor(
+      sub(".* ", "", df_original$DevelopmentalStage), # remove numbers
+      levels = c("Embrio","Larva","Juvenile","Adult","Unclear"))
+df_original$Outcome <- factor(df_original$Outcome,
+                              levels = outcomeslist)
+
+# numeric variables transformation
+# df_original$ExposureDurationDays<-log10(df_original$ExposureDurationDays+1) 
+# df_original$Concentration_mg_L  <-log10(df_original$Concentration_mg_L+1) 
+# df_original$ParticleSizeMean    <-log10(df_original$ParticleSizeMean+1)
+
+str(df_original)
+```
+
+### Calculate Effect Size
+
+```{r effect size, echo=TRUE}
+df_original <- metafor::escalc(measure = "SMD", 
+             n1i = n_treat, 
+             n2i = n_ctrl, 
+             m1i = mean_treat, 
+             m2i = mean_ctrl, 
+             sd1i = STD_treat, 
+             sd2i = STD_ctrl, 
+             data = df_original, vtype = "UB") 
+write.csv(df_original,file = "mvMetaAnalysis_SMDs.csv")
+```
+
+### Create variables
+
+```{r create variables, echo=TRUE}
+mRF <- list() # random effects formula investigation models
+mRE <- list() # random effects multilevel models
+mMR <- list() # multilevel metaregression models
+
+colormap <-c("Embrio" = "khaki", 
+            "Larva" = "lightgreen", 
+            "Juvenile" = "lightskyblue", 
+            "Adult" = "salmon", 
+            "Unclear" = "plum",
+            "ExposureDurationDays"= "cornflowerblue",
+            "ParticleSizeMean"= "chartreuse4",
+            "Concentration_mg_L"= "#fa0079ff",
+            "Aminoplast" = "chocolate4",
+            "LDPE" = "#2200faff",
+            "PE" = "#0089faff",
+            "PET" = "#00faedff",
+            "PLA" = "#00fa29ff",
+            "PS" = "#faf200ff",
+            "PVC" = "#fa9a00ff",
+            "Publication year"="black",
+            "Variance"="navyblue")
+```
+
+# Multinível
+```{r}
+for (outcome in outcomeslist){
+  df <- df_original[ which(df_original$Outcome == outcome ),]
+  print(outcome)
+  m <- rma.mv(yi, vi, 
+              random = ~ 1 | Study/EScluster/ESid,
+              data=df, method="ML")
+  
+  nSt <- m$s.nlevels[1] # number of studies
+  nEC <- m$s.nlevels[2] # number of ESclusters
+  nES <- m$s.nlevels[3] # number of independent ES (OBS: there is no repeated measurements included)
+  
+  if (nES == nSt){ 
+    RE_formula = formula(~1 | Study) # one ES by Study
+  } else if (nEC>nSt & nEC<nES){ 
+    RE_formula = formula(~1 | Study/EScluster/ESid) # more than one EScluster by Study
+  } else{
+    RE_formula = formula(~1 | Study/ESid) # only one EScluster by Study
+  }
+  
+  if (nES == nSt){
+    VCVrho <- 0
+    VCV <- df$vi
+  } else {
+    VCVrho <- 0.5
+    VCV <- vcalc(vi, cluster = interaction(df$EScluster,df$Study), obs = ESid, data = df, rho = VCVrho)
+  }
+  
+  mname1 <-outcome
+  mname2 <-paste0(mname1,"_RobVar")
+  
+  mRE[[mname1]] <- rma.mv(yi, VCV,random = RE_formula,
+                          data=df,slab = Study, method="REML",test="t", 
+                          dfs="contain", level=95)
+  mRE[[mname1]] <- additional_results(mRE[[mname1]])
+  
+  mRE[[mname2]] <- robust(mRE[[mname1]], cluster = df$Study, clubSandwich = TRUE)
+  
+  mRE[[mname2]] <- additional_results(mRE[[mname2]])
+  
+  summary(mRE[[mname2]])
+  I2_ML_RobVar<-i2_ml(mRE[[mname2]])
+  I2_ML_RobVar
+  mRE[[mname2]][["i2"]]
+  mRE[[mname2]][["pi"]]
+  mRE[[mname2]][["icc"]]
+  
+}
+```
+## Orchard
+
+```{r echo=TRUE}
+colormap1 <-c("AChE activity" = "#ff65acff", 
+            "CAT activity" = "#f962ddff", 
+            "SOD activity"= "#d575feff",
+            "GPx activity" = "#8b93ffff", 
+             "GST activity" = "#00acfcff",
+            "GSH content" = "#00bbdaff", 
+            "ROS levels"= "#00c1abff",
+            "Lipid peroxidation"= "#00be70ff",
+            "Sensory-motor function" = "#24b700ff",
+            "Motor function" = "#8cab00ff",
+            "Predatory performance" = "#be9c00ff",
+            "Feeding time" = "#e18a00ff",
+            "Speed during feeding" = "#f8766dff"
+            )
+p <-list()
+for (n in 1:length(outcomeslist)){
+  mname1 <-outcomeslist[[n]]
+m <- mRE[[paste0(mname1,"_RobVar")]]
+I2<-i2_ml(m)
+  
+if (n<=8){
+scalerange<-c(-30,30)
+}else{
+  scalerange<-c(-11,13)
+}
+
+p[[n]]<-orchard_plot(m, mod = "1", xlab = "Effect size", group = "Study", k = TRUE, g = TRUE, transfm = "none", angle = 0,legend.pos = "top.out") + 
+   annotate(geom = "text", x = 0.6, y = 5, label = paste0("italic(I)^{2} == ", round(I2[1],1), "*\"%\""), color = "black", parse = TRUE, size = 3) +
+  scale_x_discrete(labels = c(outcomeslist[[n]])) +
+  scale_fill_manual(values = colormap1[[n]]) +
+  scale_colour_manual(values = colormap1[[n]])+
+  scale_size_continuous(range = c(1, 7), limits = c(0.1, 8), labels = scales::number_format(accuracy = 0.1))+
+  scale_y_continuous(limits = scalerange)+
+  theme(legend.position = "right" ,
+          axis.title.x = element_blank())
+}
+ 
+layout <- " A
+            B
+            C
+            D
+            E
+            F
+            G
+            H
+             "
+Reduce('+', p[1:8]) + plot_layout(design = layout)
+Reduce('+', p[9:length(outcomeslist)]) + plot_layout(design = layout)
+
+
+```
+
+# Multivariada
+## Alluvial plot
+```{r echo=FALSE}
+colormap <-c("Embrio" = "khaki", 
+            "Larva" = "lightgreen", 
+            "Juvenile" = "lightskyblue", 
+            "Adult" = "salmon", 
+            "Unclear" = "plum",
+            "ExposureDurationDays"= "cornflowerblue",
+            "ParticleSizeMean"= "chartreuse4",
+            "Concentration_mg_L"= "#fa0079ff",
+            "Aminoplast" = "chocolate4",
+            "PE" = "#0089faff",
+            "PET" = "#00faedff",
+            "PLA" = "#00fa29ff",
+            "PS" = "#faf200ff",
+            "PVC" = "#fa9a00ff",
+            "Publication year"="black",
+            "Variance"="navyblue")
+### draw an alluvial plot to show the heterogeneous experimental designs of the studies included in the meta-analysis
+
+#make a dataframe of frequencies for selected variables
+freq <- as.data.frame(table(df_original$DevelopmentalStage, df_original$ExposureDurationCat, df_original$ParticleSizeCat, df_original$ParticleMaterial)) %>%
+    dplyr::rename(Stage = Var1, Duration = Var2,Size = Var3, Material = Var4)
+
+# Check for proper data to plot
+#ggalluvial::is_alluvia_form(as.data.frame(freq), axes = 1:4, silent = FALSE)
+
+ggplot(data = freq, aes(axis1 = Stage, axis2 = Duration,  axis3 = Size, axis4 = Material, y = Freq)) + 
+    geom_alluvium(aes(fill = Stage, colour = Stage)) + 
+    scale_color_manual(values = colormap)+
+    scale_fill_manual(values = colormap)+
+    geom_flow() + 
+    geom_stratum() + 
+    geom_text(stat = "stratum", aes(label = after_stat(stratum))) +
+    theme_void() + 
+    theme(legend.position = "none", 
+          plot.title = element_text(hjust = 0, vjust = 3), 
+          axis.title.x = element_text(), axis.text.x = element_text(face = "bold"), 
+          plot.margin = unit(c(1, 1, 0, 1), "cm")
+          ) + 
+  scale_x_discrete(limits = c("Dev. stage", "Duration", "Size","Material"), position = "top")
+# save fig as .png
+# png(filename = "./alluvil_plot.png", width = 8, height = 4, units = "in", type = "windows", res = 400)
+# alluvil_plot
+# dev.off()
+```
+
+```{r, echo=FALSE}
+#pdf(file='Figures/Boxplot_ESbyOutcome.pdf') # Open SVG device with specific file name
+df_original %>%
+  mutate(class = factor(Outcome, levels = rev(levels(Outcome)))) %>%
+  ggplot( aes(yi, class, fill=class))+ 
+    geom_boxplot() +
+    xlab("ES") + 
+    ylab("") +
+    theme_bw(base_size = 18) +
+    theme(legend.position="none")
+#dev.off() 
+```
+
+## Models
+OBS: Results are not appropriate because it is not possible to include multilevel structure, but... if I calculate vcalc already considering the different levels of correlations?
+
+```{r}
+#https://metafor-project.org/doku.php/analyses:berkey1998
+
+MV<-list()
+df<- df_original
+
+#dropped<-"Feeding time"
+#df <- df[!df$Outcome %in% c(dropped), ]
+
+VCVrho<-0.5
+
+VCV <- vcalc(vi, cluster = Study, type=Outcome, grp1=ESid, grp2=EScluster, w1=n_treat, w2=n_ctrl, data = df, rho = VCVrho)
+
+MV[[1]] <- rma.mv(yi, VCV,random = ~ Outcome | Study, mods= ~  0 + Outcome,
+                        data=df,slab = Study, method="REML",test="t",
+                        dfs="contain", level=95) 
+MV[[2]] <- robust(MV[[1]], cluster = df$Study, clubSandwich = TRUE,verbose=TRUE)
+
+df$Year_centered <- df$Year-mean(df$Year)
+df$ESSE <- sqrt(df$vi) ## sampling error for ES
+#PET
+MV[[3]] <- rma.mv(yi, VCV,random = ~ Outcome | Study, mods= ~  0 + Outcome +
+                 Outcome:(Year_centered + ESSE),
+                        data=df,slab = Study, method="REML",test="t",
+                        dfs="contain", level=95) 
+MV[[4]] <- robust(MV[[3]], cluster = df$Study, clubSandwich = TRUE,verbose=TRUE)
+#PEESE
+MV[[3]] <- rma.mv(yi, VCV,random = ~ Outcome | Study, mods= ~  0 + Outcome +
+                 Outcome:(Year_centered + vi),
+                        data=df,slab = Study, method="REML",test="t",
+                        dfs="contain", level=95) 
+MV[[4]] <- robust(MV[[3]], cluster = df$Study, clubSandwich = TRUE,verbose=TRUE)
+
+## ‘effective sample size’ because it accounts for unbalanced sampling
+df$ess_vi <- with(df,sqrt((n_treat + n_ctrl)/(n_treat*n_ctrl)))
+df$ess_SE <- sqrt(df$ess_vi) ## sampling error for ES
+#PET SENSITIVITY
+MV[[5]] <- rma.mv(yi, VCV,random = ~ Outcome | Study, mods= ~  0 + Outcome +
+                 Outcome:(Year_centered + ess_SE),
+                        data=df,slab = Study, method="REML",test="t",
+                        dfs="contain", level=95) 
+MV[[6]] <- robust(MV[[5]], cluster = df$Study, clubSandwich = TRUE,verbose=TRUE)
+
+
+MV[[7]] <- rma.mv(yi, VCV,random = ~ Outcome | Study, mods= ~  0 + Outcome +
+                Outcome:(ParticleSizeMean + Concentration_mg_L + ExposureDurationDays*DevelopmentalStage + ess_SE),
+                         data=df,slab = Study, method="REML",test="t",
+                         dfs="contain", level=95)
+MV[[8]] <- robust(MV[[7]], cluster = df$Study, clubSandwich = TRUE,verbose=TRUE)
+
+#save(MV, VCV, df, VCVrho, file = "MV_workspace.RData")
+```
+```{r}
+print("Multivariate of outcomes")
+summary(MV[[1]])
+print("Multivariate of outcomes with robust variance")
+summary(MV[[2]])
+print("Multivariate of outcomes with publication bias correction")
+summary(MV[[3]])
+print("Multivariate of outcomes with publication bias correction and robust variance")
+summary(MV[[4]])
+print("Multivariate of outcomes with moderators and small-study effect correction")
+summary(MV[[7]])
+print("Multivariate of outcomes with moderators, small-study effect correction and robust variance")
+summary(MV[[8]])
+```
+
+```{r}
+colormap1 <-c("AChE activity" = "#ff65acff", 
+            "CAT activity" = "#f962ddff", 
+            "SOD activity"= "#d575feff",
+            "GPx activity" = "#8b93ffff", 
+            "GST activity" = "#00acfcff",
+            "GSH content" = "#00bbdaff", 
+            "ROS levels"= "#00c1abff",
+            "Lipid peroxidation"= "#00be70ff",
+            "Sensory-motor function" = "#24b700ff",
+            "Motor function" = "#8cab00ff",
+            "Predatory performance" = "#be9c00ff",
+            "Speed during feeding" = "#e18a00ff",
+            "Feeding time" = "#f8766dff"
+            )
+m<-MV[[4]]
+
+plot_data <- data.frame(
+  Outcome = gsub("^Outcome", "", rownames(m$beta)), # limpa nomes
+  Estimate = as.numeric(m$beta),
+  CI_low = m$ci.lb,
+  CI_high = m$ci.ub
+)
+
+plot_data <- plot_data[seq(1,13),]
+# Ordenar por valor de estimativa 
+#plot_data <- plot_data %>% arrange(Estimate)
+plot_data$Outcome <- factor(plot_data$Outcome, levels = rev(outcomeslist))
+
+plot_data_neuroc <- plot_data[1:8, ]
+plot_data_behav <- plot_data[9:13, ]
+
+# Plot com ggplot2
+p1 <- ggplot(plot_data_neuroc, aes(x = Outcome, y = Estimate, color = Outcome)) +
+  geom_point(size = 3) +
+  geom_errorbar(aes(ymin = CI_low, ymax = CI_high), width = 0.2) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray40") +
+  coord_flip() +
+  labs(y = "ES", x = NULL) +
+  scale_color_manual(values = colormap1) +
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_blank(),
+    plot.background = element_blank(),
+    axis.line = element_line(color = "black"),
+    legend.position = "none"
+  )
+
+# Plot 2: Bottom 5
+p2 <- ggplot(plot_data_behav, aes(x = Outcome, y = Estimate, color = Outcome)) +
+  geom_point(size = 3) +
+  geom_errorbar(aes(ymin = CI_low, ymax = CI_high), width = 0.2) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray40") +
+  coord_flip() +
+  labs(y = "ES", x = NULL) +
+  scale_color_manual(values = colormap1) +
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_blank(),
+    plot.background = element_blank(),
+    axis.line = element_line(color = "black"),
+    legend.position = "none"
+  )
+
+#load("MV_workspace.RData")
+```
+
+
+# Referências
+
+```{r}
+# Referências
+```
