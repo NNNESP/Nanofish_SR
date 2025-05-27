@@ -81,7 +81,7 @@ additional_results <- function(m) {
 ## Load data
 
 ```{r Load data, include=FALSE}
-file <- "mvMetaAnalysis_export.csv"
+file <- "ExtractionRevised_MetaAnalysis.csv"
 
 df_original <- read.csv(file,  header = TRUE, stringsAsFactors = TRUE, na.strings = c("NA"))
 
@@ -228,19 +228,18 @@ for (outcome in outcomeslist){
 ```{r echo=TRUE}
 colormap1 <-c("AChE activity" = "#ff65acff", 
             "CAT activity" = "#f962ddff", 
-            "GPx activity" = "#d575feff", 
-            "GSH content" = "#8b93ffff", 
-            "GST activity" = "#00acfcff",
-            "Lipid peroxidation"= "#00bbdaff",
+            "SOD activity"= "#d575feff",
+            "GPx activity" = "#8b93ffff", 
+             "GST activity" = "#00acfcff",
+            "GSH content" = "#00bbdaff", 
             "ROS levels"= "#00c1abff",
-            "SOD activity"= "#00be70ff",
-            "Motor function" = "#24b700ff",
-            "Sensory-motor function" = "#8cab00ff",
+            "Lipid peroxidation"= "#00be70ff",
+            "Sensory-motor function" = "#24b700ff",
+            "Motor function" = "#8cab00ff",
             "Predatory performance" = "#be9c00ff",
             "Feeding time" = "#e18a00ff",
             "Speed during feeding" = "#f8766dff"
             )
-
 p <-list()
 for (n in 1:length(outcomeslist)){
   mname1 <-outcomeslist[[n]]
@@ -347,30 +346,53 @@ OBS: Results are not appropriate because it is not possible to include multileve
 #https://metafor-project.org/doku.php/analyses:berkey1998
 
 MV<-list()
+df<- df_original
+
+#dropped<-"Feeding time"
+#df <- df[!df$Outcome %in% c(dropped), ]
 
 VCVrho<-0.5
 
-VCV <- vcalc(vi, cluster = Study, type=Outcome, grp1=ESid, grp2=EScluster, w1=n_treat, w2=n_ctrl, data = df_original, rho = VCVrho)
+VCV <- vcalc(vi, cluster = Study, type=Outcome, grp1=ESid, grp2=EScluster, w1=n_treat, w2=n_ctrl, data = df, rho = VCVrho)
 
 MV[[1]] <- rma.mv(yi, VCV,random = ~ Outcome | Study, mods= ~  0 + Outcome,
-                        data=df_original,slab = Study, method="REML",test="t",
+                        data=df,slab = Study, method="REML",test="t",
                         dfs="contain", level=95) 
-MV[[2]] <- robust(MV[[1]], cluster = df_original$Study, clubSandwich = TRUE,verbose=TRUE)
+MV[[2]] <- robust(MV[[1]], cluster = df$Study, clubSandwich = TRUE,verbose=TRUE)
 
-df_original$Year_centered <- df_original$Year-mean(df_original$Year)
+df$Year_centered <- df$Year-mean(df$Year)
+df$ESSE <- sqrt(df$vi) ## sampling error for ES
+#PET
+MV[[3]] <- rma.mv(yi, VCV,random = ~ Outcome | Study, mods= ~  0 + Outcome +
+                 Outcome:(Year_centered + ESSE),
+                        data=df,slab = Study, method="REML",test="t",
+                        dfs="contain", level=95) 
+MV[[4]] <- robust(MV[[3]], cluster = df$Study, clubSandwich = TRUE,verbose=TRUE)
+#PEESE
 MV[[3]] <- rma.mv(yi, VCV,random = ~ Outcome | Study, mods= ~  0 + Outcome +
                  Outcome:(Year_centered + vi),
-                        data=df_original,slab = Study, method="REML",test="t",
+                        data=df,slab = Study, method="REML",test="t",
                         dfs="contain", level=95) 
-MV[[3]] <- robust(MV[[1]], cluster = df_original$Study, clubSandwich = TRUE,verbose=TRUE)
+MV[[4]] <- robust(MV[[3]], cluster = df$Study, clubSandwich = TRUE,verbose=TRUE)
+
+## ‘effective sample size’ because it accounts for unbalanced sampling
+df$ess_vi <- with(df,sqrt((n_treat + n_ctrl)/(n_treat*n_ctrl)))
+df$ess_SE <- sqrt(df$ess_vi) ## sampling error for ES
+#PET SENSITIVITY
+MV[[5]] <- rma.mv(yi, VCV,random = ~ Outcome | Study, mods= ~  0 + Outcome +
+                 Outcome:(Year_centered + ess_SE),
+                        data=df,slab = Study, method="REML",test="t",
+                        dfs="contain", level=95) 
+MV[[6]] <- robust(MV[[5]], cluster = df$Study, clubSandwich = TRUE,verbose=TRUE)
 
 
-MV[[4]] <- rma.mv(yi, VCV,random = ~ Outcome | Study, mods= ~  0 + Outcome +
-                 Outcome:(ParticleSizeMean + ExposureDurationDays*DevelopmentalStage),
-                        data=df_original,slab = Study, method="REML",test="t",
-                        dfs="contain", level=95)
+MV[[7]] <- rma.mv(yi, VCV,random = ~ Outcome | Study, mods= ~  0 + Outcome +
+                Outcome:(ParticleSizeMean + Concentration_mg_L + ExposureDurationDays*DevelopmentalStage + ess_SE),
+                         data=df,slab = Study, method="REML",test="t",
+                         dfs="contain", level=95)
+MV[[8]] <- robust(MV[[7]], cluster = df$Study, clubSandwich = TRUE,verbose=TRUE)
 
-#save(MV, VCV, df_original, VCVrho, file = "MV_workspace.RData")
+#save(MV, VCV, df, VCVrho, file = "MV_workspace.RData")
 ```
 ```{r}
 print("Multivariate of outcomes")
@@ -379,11 +401,78 @@ print("Multivariate of outcomes with robust variance")
 summary(MV[[2]])
 print("Multivariate of outcomes with publication bias correction")
 summary(MV[[3]])
-print("Multivariate of outcomes with moderators - concentration not included due to convergence issues")
+print("Multivariate of outcomes with publication bias correction and robust variance")
 summary(MV[[4]])
+print("Multivariate of outcomes with moderators and small-study effect correction")
+summary(MV[[7]])
+print("Multivariate of outcomes with moderators, small-study effect correction and robust variance")
+summary(MV[[8]])
 ```
 
 ```{r}
+colormap1 <-c("AChE activity" = "#ff65acff", 
+            "CAT activity" = "#f962ddff", 
+            "SOD activity"= "#d575feff",
+            "GPx activity" = "#8b93ffff", 
+            "GST activity" = "#00acfcff",
+            "GSH content" = "#00bbdaff", 
+            "ROS levels"= "#00c1abff",
+            "Lipid peroxidation"= "#00be70ff",
+            "Sensory-motor function" = "#24b700ff",
+            "Motor function" = "#8cab00ff",
+            "Predatory performance" = "#be9c00ff",
+            "Speed during feeding" = "#e18a00ff",
+            "Feeding time" = "#f8766dff"
+            )
+m<-MV[[4]]
+
+plot_data <- data.frame(
+  Outcome = gsub("^Outcome", "", rownames(m$beta)), # limpa nomes
+  Estimate = as.numeric(m$beta),
+  CI_low = m$ci.lb,
+  CI_high = m$ci.ub
+)
+
+plot_data <- plot_data[seq(1,13),]
+# Ordenar por valor de estimativa 
+#plot_data <- plot_data %>% arrange(Estimate)
+plot_data$Outcome <- factor(plot_data$Outcome, levels = rev(outcomeslist))
+
+plot_data_neuroc <- plot_data[1:8, ]
+plot_data_behav <- plot_data[9:13, ]
+
+# Plot com ggplot2
+p1 <- ggplot(plot_data_neuroc, aes(x = Outcome, y = Estimate, color = Outcome)) +
+  geom_point(size = 3) +
+  geom_errorbar(aes(ymin = CI_low, ymax = CI_high), width = 0.2) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray40") +
+  coord_flip() +
+  labs(y = "ES", x = NULL) +
+  scale_color_manual(values = colormap1) +
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_blank(),
+    plot.background = element_blank(),
+    axis.line = element_line(color = "black"),
+    legend.position = "none"
+  )
+
+# Plot 2: Bottom 5
+p2 <- ggplot(plot_data_behav, aes(x = Outcome, y = Estimate, color = Outcome)) +
+  geom_point(size = 3) +
+  geom_errorbar(aes(ymin = CI_low, ymax = CI_high), width = 0.2) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray40") +
+  coord_flip() +
+  labs(y = "ES", x = NULL) +
+  scale_color_manual(values = colormap1) +
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_blank(),
+    plot.background = element_blank(),
+    axis.line = element_line(color = "black"),
+    legend.position = "none"
+  )
+
 #load("MV_workspace.RData")
 ```
 

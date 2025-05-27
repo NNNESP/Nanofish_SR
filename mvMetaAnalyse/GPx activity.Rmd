@@ -1,10 +1,7 @@
 ---
-title: "Nanofish: Speed during feeding"
-# AChE activity 1        CAT activity 2         GPx activity 3     GSH content 4  
-# GST activity 5         Lipid peroxidation 6    ROS levels 7       SOD activity 8
-# *Motor function  9                 Sensory-motor function 10 
-# Predatory performance 11        [Feeding time 12]       [Speed during feeding 13]
-# rodar para sensory-motor function; 
+title: "Nanofish: GPx activity"
+# GPx activity 3*     GST activity 5**   [Feeding time 12]*
+
 output:
   html_document:
     cache: false
@@ -81,9 +78,9 @@ additional_results <- function(m) {
 ## Load data
 
 ```{r Load data, include=FALSE}
-n_outcome<-13
+n_outcome<-3
 
-file <- "mvMetaAnalysis_export.csv"
+file <- "ExtractionRevised_MetaAnalysis.csv"
 
 df_original <- read.csv(file,  header = TRUE, stringsAsFactors = TRUE, na.strings = c("NA"))
 
@@ -177,9 +174,9 @@ colormap <-c("Embrio" = "khaki",
             "Variance"="navyblue")
 ```
 
-### Select outcome
+### Select outcome data
 
-```{r echo=FALSE, warning=FALSE}
+```{r select outcome data, echo=FALSE, warning=FALSE}
 df <- df_original[ which(df_original$Outcome == outcome ),]
 #df <- df[order(df$DevelopmentalStage,-df$yi),]
 
@@ -193,7 +190,7 @@ DT::datatable(df)
 
 > Before running any meta-analytic model, it is important to explore the meta-analytic dataset to search for potential outliers that could represent data extraction errors. [@nakagawa2022]
 
-```{r}
+```{r funnel plot}
 xmax<-ceiling(max(abs(df$yi)))
 xlimits <- (xmax+3*xmax)*c(-1,1)
 par(mfrow = c(1, 2))
@@ -207,7 +204,7 @@ funnel(df$yi, df$vi, yaxis="seinv",label="out",
 
 ## Alluvial plot
 
-```{r echo=FALSE}
+```{r alluvial plot, echo=FALSE}
 ### draw an alluvial plot to show the heterogeneous experimental designs of the studies included in the meta-analysis
 
 #make a dataframe of frequencies for selected variables
@@ -241,7 +238,7 @@ ggplot(data = freq, aes(axis1 = Stage, axis2 = Duration,  axis3 = Size, axis4 = 
 
 ## Random effects formula desing
 
-```{r echo=FALSE}
+```{r random effects structure, echo=FALSE}
 # choose a hierarchical structure that represents allow representation of the dependencies between data
 mRF[["base"]] <- rma.mv(yi, vi, 
                                random = ~ 1 | Study/EScluster/ESid,
@@ -300,7 +297,7 @@ for (j in seq(1:length(REterms))){
 
 Study cluster, particle material and species as random effects term can further improve results?
 
-```{r eval=FALSE, include=FALSE}
+```{r echo=TRUE}
 res <-vector("list",3)
 
 # with selected random effects formula only
@@ -315,8 +312,8 @@ mRF[["StudyCluster"]] <- rma.mv(yi, vi,
 
 # add Particle Material
 mRF[["ParticleMat"]] <- rma.mv(yi, vi, 
-              random = list(RE_formula, ~ 1 | ParticleMaterial),
-              data=df, method="ML")
+               random = list(RE_formula, ~ 1 | ParticleMaterial),
+               data=df, method="ML")
 
 # add Species
 mRF[["Species"]] <- rma.mv(yi, vi, 
@@ -325,7 +322,10 @@ mRF[["Species"]] <- rma.mv(yi, vi,
 
 t1<-data.frame(sapply(mRF,  fitstats))
 rownames(t1) <-rownames(fitstats(mRF[[1]]))
-names(t1)<-c("Nested", "+StudyCluster", "+Particle Material", "+Species")
+names(t1)<-c("Nested", 
+             "+StudyCluster",
+             "+ParticleMaterial",
+             "+Species")
 
 DT::datatable(t1)
 
@@ -336,9 +336,9 @@ res[[3]] <- anova(mRF[["base"]],mRF[["Species"]])
 t2 <- data.frame(
   Comparison = c(
     "+Study Cluster",
-    "+Particle Material",
+    "+ParticleMaterial",
     "+Species"),
-  LRT = sapply(res, function(x) round(x$LRT,2)), # Deviance para o modelo maior
+  LRT = sapply(res, function(x) round(x$LRT,2)),
   p_value = sapply(res, function(x) round(x$pval,3)) # p-value associado
 )
 
@@ -422,13 +422,36 @@ No difference between treatment and control groups (ES = `r beta` ± `r se`, CI9
 
 So, **better use meta-regression dataset**, but requires larger dataset to avoid possible convergence issues.
 
-```{r include=FALSE}
-# PET + year
+```{r Publication bias year, echo=TRUE}
+bias <-"Year"
+mRE[[bias]] <- rma.mv(yi, VCV, random = RE_formula,
+                               mods = ~ Year, 
+                               data=df,slab = Study, method="REML",test="t", 
+                               dfs="contain", level=95)
+mRE[[bias]] <- robust(mRE[[bias]], cluster = df$Study, clubSandwich = TRUE)
+mRE[[bias]] <- additional_results(mRE[[bias]])
+mRE[[bias]][["pi"]] <- predict(mRE[[bias]], newmods = c(0,mean(df$Year)), digits = 2)
+
+print(bias)
+summary(mRE[[bias]])
+mRE[[bias]][["pi"]]
+
+plot_timelagbias <- bubble_plot(mRE[[bias]], mod = "Year", group = "Study",
+                               xlab = "Publication year", ylab = "Effect size (SMD)",
+                               legend.pos = "none", colorby="Publication year",
+                               colormap=colormap)
+
+forest(mRE[[bias]])
+```
+
+
+```{r Publication bias, echo=TRUE}
+# PET
 df$ESSE <- sqrt(df$vi) ## sampling error for ES
 
 bias <-"PET"
 mRE[[bias]] <- rma.mv(yi, VCV, random = RE_formula,
-                               mods = ~ ESSE + Year, 
+                               mods = ~ ESSE, 
                                data=df,slab = Study, method="REML",test="t", 
                                dfs="contain", level=95)
 mRE[[bias]] <- robust(mRE[[bias]], cluster = df$Study, clubSandwich = TRUE)
@@ -437,11 +460,11 @@ mRE[[bias]][["pi"]] <- predict(mRE[[bias]], newmods = c(0,mean(df$Year)), digits
 
 # if estimate is significant, assumes a quadratic association between sampling error and effect sizes to avoid a downwardly biased estimate of the bias-corrected overall effect:
 
-# PEESE + year
-if (mRE[[bias]]$pval[2]<0.10){
+# PEESE
+if (mRE[[bias]]$pval[1]<0.10){
   mname<-"PEESE"
   mRE[[mname]] <- rma.mv(yi, VCV, random = RE_formula,
-              mods = ~ vi + Year, 
+              mods = ~ vi, 
               data=df,slab = Study, method="REML",test="t", 
               dfs="contain", level=95)
   mRE[[mname]] <- robust(mRE[[mname]], cluster = df$Study, clubSandwich = TRUE)
@@ -461,12 +484,7 @@ print(bias)
 summary(mRE[[bias]])
 mRE[[bias]][["pi"]]
 
-plot_timelagbias <- bubble_plot(mRE[[bias]], mod = "Year", group = "Study",
-                               xlab = "Publication year", ylab = "Effect size (SMD)",
-                               legend.pos = "none", colorby="Publication year",
-                               colormap=colormap)
-
-if (mRE[["PET"]]$pval[2]<0.10){
+if (mRE[["PET"]]$pval[1]<0.10){
 plot_smallstudybias <- bubble_plot(mRE[[bias]], mod = "vi", group = "Study",
             xlab = "Variance", ylab = "Effect size (SMD)",
             legend.pos = "none", colorby="Variance",colormap=colormap)
@@ -479,6 +497,7 @@ plot_smallstudybias <- bubble_plot(mRE[[bias]], mod = "vi", group = "Study",
 print(plot_timelagbias + plot_smallstudybias)
 
 forest(mRE[[bias]])
+
 ```
 
 **Small-study effect** The regression slope of the extended Egger's regression is $\sqrt{SMDSE} = `r mRE[[bias]]$beta[2]`$ is it statistically different from zero?`
@@ -500,70 +519,63 @@ If p\>=0.050: studies with statistically significant findings **do not** tend to
 > Instead of the sample size (n1 + n2), however, for a meta-analysis of SMD or lnRR, we propose using the ‘effective sample size’ because it accounts for unbalanced sampling (cf. Stanley, 2005).[@nakagawa2022]
 
 ```{r echo=TRUE}
-if (mRE[[bias]]$pval[2]<0.05){
-  
-  # calculate modified SE based on effective sample size
-  df$ess_vi <- with(df,sqrt((n_treat + n_ctrl)/(n_treat*n_ctrl)))
-  df$ess_SE <- sqrt(df$ess_vi) ## sampling error for ES
-  
-  # PET + year
-  bias2 <-"PET sensitivity"
-  mRE[[bias2]] <- rma.mv(yi, VCV, random = RE_formula,
-              mods = ~ ess_SE + Year, 
-              data=df,slab = Study, method="REML",test="t", 
-              dfs="contain", level=95)
-  mRE[[bias2]] <- robust(mRE[[bias2]], cluster = df$Study, clubSandwich = TRUE)
-  mRE[[bias2]] <- additional_results(mRE[[bias2]])
-  mRE[[bias2]][["pi"]] <- predict(mRE[[bias2]], newmods = c(0,mean(df$Year)), digits = 2)
-  
-  # PEESE + year
-  if (mRE[[bias2]]$pval[2]<0.10){
-    mname <- "PEESE sensitivity"
-    mRE[[mname]] <- rma.mv(yi, VCV, random = RE_formula,
-                mods = ~ ess_vi + Year, 
-                data=df,slab = Study, method="REML",test="t", 
-                dfs="contain", level=95)
-    mRE[[mname]] <- robust(mRE[[mname]], cluster = df$Study, clubSandwich = TRUE)
-    mRE[[mname]] <- additional_results(mRE[[mname]])
-    mRE[[mname]][["pi"]] <- predict(mRE[[mname]], newmods = c(0,mean(df$Year)), digits = 2)
-    bias2<-mname
-  }
+# calculate modified SE based on effective sample size
+df$ess_vi <- with(df,sqrt((n_treat + n_ctrl)/(n_treat*n_ctrl)))
+df$ess_SE <- sqrt(df$ess_vi) ## sampling error for ES
+
+# PET + year
+bias2 <-"PET sensitivity"
+mRE[[bias2]] <- rma.mv(yi, VCV, random = RE_formula,
+                       mods = ~ ess_SE, 
+                       data=df,slab = Study, method="REML",test="t", 
+                       dfs="contain", level=95)
+mRE[[bias2]] <- robust(mRE[[bias2]], cluster = df$Study, clubSandwich = TRUE)
+mRE[[bias2]] <- additional_results(mRE[[bias2]])
+mRE[[bias2]][["pi"]] <- predict(mRE[[bias2]], newmods = c(0,mean(df$Year)), digits = 2)
+
+# PEESE + year
+if (mRE[[bias2]]$pval[1]<0.10){
+  mname <- "PEESE sensitivity"
+  mRE[[mname]] <- rma.mv(yi, VCV, random = RE_formula,
+                         mods = ~ ess_vi, 
+                         data=df,slab = Study, method="REML",test="t", 
+                         dfs="contain", level=95)
+  mRE[[mname]] <- robust(mRE[[mname]], cluster = df$Study, clubSandwich = TRUE)
+  mRE[[mname]] <- additional_results(mRE[[mname]])
+  mRE[[mname]][["pi"]] <- predict(mRE[[mname]], newmods = c(0,mean(df$Year)), digits = 2)
+  bias2<-mname
 }
+
 ```
 
 If the results are the same, indicates the robustness of the small-study test.
 
 #### Plots
 
-```{r echo=FALSE}
-if (mRE[[bias]]$pval[2]<0.05){
-  print(bias2)
-  summary(mRE[[bias2]])
-  mRE[[bias2]][["pi"]]
-  
-  plot_timelagbias <- bubble_plot(mRE[[bias2]], mod = "Year", group = "Study",
-                                  xlab = "Publication year", ylab = "Effect size (SMD)",
-                                  legend.pos = "none", colorby="Publication year",
-                                  colormap=colormap)
-  
-  if (mRE[["PET sensitivity"]]$pval[2]<0.10){
-    plot_smallstudybias <- bubble_plot(mRE[[bias2]], mod = "ess_vi", group = "Study",
-                                       xlab = "Modified sampling error variance", ylab = "Effect size (SMD)",
-                                       legend.pos = "none", colorby="Variance",colormap=colormap)
-  }else{
-    plot_smallstudybias <- bubble_plot(mRE[[bias2]], mod = "ess_SE", group = "Study",
-                                       xlab = "Modified sampling error", ylab = "Effect size (SMD)",
-                                       legend.pos = "none", colorby="Variance",colormap=colormap)
-  }
-  
-  print(plot_timelagbias + plot_smallstudybias)
-  
-  forest(mRE[[bias]])
+```{r echo=TRUE}
+
+print(bias2)
+summary(mRE[[bias2]])
+mRE[[bias2]][["pi"]]
+
+
+if (mRE[["PET sensitivity"]]$pval[1]<0.10){
+  plot_smallstudybias <- bubble_plot(mRE[[bias2]], mod = "ess_vi", group = "Study",
+                                     xlab = "Modified sampling error variance", ylab = "Effect size (SMD)",
+                                     legend.pos = "none", colorby="Variance",colormap=colormap)
+}else{
+  plot_smallstudybias <- bubble_plot(mRE[[bias2]], mod = "ess_SE", group = "Study",
+                                     xlab = "Modified sampling error", ylab = "Effect size (SMD)",
+                                     legend.pos = "none", colorby="Variance",colormap=colormap)
 }
+
+print(plot_timelagbias + plot_smallstudybias)
+
+#forest(mRE[[bias]])
+
 ```
 
 # Sensitivity
-
 ## Rho range
 
 ```{r echo=TRUE}
@@ -584,6 +596,28 @@ if (VCVrho != 0){
     mRE[[mname]] <- additional_results(mRE[[mname]])
   }
 }
+```
+
+##Leave Embryo or Unclear out + Rho range
+```{r}
+if (sum(df$DevelopmentalStage %in% c("Embryo", "Unclear"))>0){
+  
+if (VCVrho != 0){rho_range <- c(0.25, 0.5, 0.75, 0.9)} else {rho_range <-0}
+
+df_temp <- df[!df$DevelopmentalStage %in% c("Embryo", "Unclear"), ]
+
+for (j in 1:length(rho_range)) {
+    
+    mname <- paste("rho", rho_range[j],"_drop_EmbryoUnclear")
+    print(mname)
+    VCV2 <- vcalc(vi, cluster = interaction(df_temp$EScluster,df_temp$Study), obs = ESid, data = df_temp, rho = rho_range[j])
+    
+    mRE[[mname]] <- rma.mv(yi, VCV2,random = RE_formula,
+                         data=df_temp,slab = Study, method="REML",test="t", 
+                         dfs="contain", level=95)
+    mRE[[mname]] <- robust(mRE[[mname]], cluster = df_temp$Study, clubSandwich = TRUE)
+    mRE[[mname]] <- additional_results(mRE[[mname]])
+  }}
 ```
 
 ## Leave one out + Rho range
@@ -716,7 +750,7 @@ ggpairs(df_MR,
 
 ## Model 1: Size, Duration, Development
 
-```{r echo=TRUE}
+```{r model 1: particle size + duration + developmental stage, echo=TRUE}
 df_MR <- select(df, c("Year", "StudyID","Study", "EScluster", "ESid","DevelopmentalStage",
                       "ExposureDurationDays","ParticleSizeMean","yi", "vi"))
 
@@ -726,11 +760,14 @@ mname2 <-paste0(mname1,"_RobVar")
 #are there differences between the different forms of DevelopmentalStage?
 #mods_formula <- formula(~ ParticleSizeMean
 #                             + ExposureDurationDays*DevelopmentalStage)
+
 #at least one of the DevelopmentalStage levels is different than zero?
-if (n_outcome!=10){
+morethan1stages <- length(unique(df$DevelopmentalStage))>1
+print(c('more than 1 developmental stage: ',morethan1stages))
+if (morethan1stages)  {
 mods_formula <- formula(~ 0 + ParticleSizeMean
                              + ExposureDurationDays*DevelopmentalStage)
-}else if (n_outcome==10){ #for Sensory-motor function
+}else{ #for Sensory-motor function
   mods_formula <- formula(~ 0 + ParticleSizeMean
                              + ExposureDurationDays)
 }
@@ -740,12 +777,17 @@ mMR[[mname1]] <- rma.mv(yi, VCV,random = RE_formula, mods= mods_formula,
                  dfs="contain", level=95) #it will only keep complete cases
 
 nSt_MR <- mMR[[mname1]]$s.nlevels[1] # number of studies
-nEC_MR <- mMR[[mname1]]$s.nlevels[2] # number of ESclusters
+nEC_MR <- mMR[[mname1]]$s.nlevels[2] # number of ESclusters/independent ES
 nES_MR <- mMR[[mname1]]$s.nlevels[3] # number of independent ES
 
+if (length(mMR[[mname1]]$s.nlevels)==3){
 print(paste0("Number of studies: ",nSt_MR,
             ", number of ES clusters: ",nEC_MR,
             " and number of independent observations of ES: ",nES_MR))
+}else{
+  print(paste0("Number of studies: ",nSt_MR,
+            " and number of independent observations of ES: ",nEC_MR))
+}
 
 mMR[[mname2]] <- robust(mMR[[mname1]], cluster = df_MR$Study, clubSandwich = TRUE,verbose=TRUE)
 
@@ -757,17 +799,17 @@ anova(mMR[[mname2]], btt=c("DevelopmentalStage","ExposureDurationDays","Particle
 }else if (n_outcome==10){ #for Sensory-motor function
   anova(mMR[[mname2]], btt=c("ExposureDurationDays","ParticleSizeMean"))
 }
-```
-
-The meta-regression comprised `r nES_MR` comparisons from `r nEC_MR` control group clusters of `r nSt_MR` independent studies.
-
-#### Diagnostics plots
-
-```{r}
 m<-mMR[[mname2]]
 
 summary(m)
 m$fit.stats
+```
+The meta-regression comprised `r nES_MR` comparisons from `r nEC_MR` control group clusters of `r nSt_MR` independent studies (4lvl).
+The meta-regression comprised `r nES_MR` comparisons from `r nEC_MR` independent studies (3lvl).
+
+#### Diagnostics plots
+
+```{r echo=TRUE}
 diagnostic_plots(m)
 ```
 
@@ -841,7 +883,12 @@ p1 + plot_spacer() + plot_spacer() + plot_spacer() + p5 + p3 + plot_layout(desig
 
 ## Model 2: + Concentration
 
-```{r echo=TRUE}
+```{r model 2: +concentration, echo=TRUE}
+morethan3concentrations <- length(unique(df$Concentration_mg_L))>3 #one can be NA
+print(c('more than 3 concentrations: ',morethan3concentrations))
+
+if (morethan3concentrations){
+  
 df_MR <- select(df, c("Year", "StudyID","Study", "EScluster", "ESid","DevelopmentalStage",
                       "ExposureDurationDays","ParticleSizeMean",
                       "Concentration_mg_L","yi", "vi"))
@@ -865,12 +912,17 @@ mMR[[mname1]] <- rma.mv(yi, VCV,random = RE_formula, mods= mods_formula,
                  dfs="contain", level=95) #it will only keep complete cases
 
 nSt_MR <- mMR[[mname1]]$s.nlevels[1] # number of studies
-nEC_MR <- mMR[[mname1]]$s.nlevels[2] # number of ESclusters
+nEC_MR <- mMR[[mname1]]$s.nlevels[2] # number of ESclusters/independent ES
 nES_MR <- mMR[[mname1]]$s.nlevels[3] # number of independent ES
 
+if (length(mMR[[mname1]]$s.nlevels)==3){
 print(paste0("Number of studies: ",nSt_MR,
             ", number of ES clusters: ",nEC_MR,
             " and number of independent observations of ES: ",nES_MR))
+}else{
+  print(paste0("Number of studies: ",nSt_MR,
+            " and number of independent observations of ES: ",nEC_MR))
+  }
 
 mMR[[mname2]] <- robust(mMR[[mname1]], cluster = df_MR$Study, clubSandwich = TRUE,verbose=TRUE)
 
@@ -882,23 +934,30 @@ anova(mMR[[mname2]], btt=c("DevelopmentalStage","ExposureDurationDays","Particle
 }else if (n_outcome==10){ #for Sensory-motor function
  anova(mMR[[mname2]], btt=c("ExposureDurationDays","ParticleSizeMean","Concentration_mg_L"))
 }
-```
-
-The meta-regression comprised `r nES_MR` comparisons from `r nEC_MR` control group clusters of `r nSt_MR` independent studies.
-
-#### Diagnostics plots
-
-```{r echo=TRUE}
 m<-mMR[[mname2]]
 
 summary(m)
 m$fit.stats
+}
+
+```
+
+The meta-regression comprised `r nES_MR` comparisons from `r nEC_MR` control group clusters of `r nSt_MR` independent studies.
+The meta-regression comprised `r nES_MR` comparisons from `r nEC_MR` independent studies.
+
+
+#### Diagnostics plots
+
+```{r echo=TRUE}
+if (morethan3concentrations)  {
 diagnostic_plots(m)
+}
 ```
 
 #### Influential cases
 
-```{r echo=FALSE, fig.height=8, fig.width=10}
+```{r echo=TRUE, fig.height=8, fig.width=10}
+if (morethan3concentrations)  {
 tryCatch({
   distance <- cooks.distance(m, cluster=df$Study)
   distance
@@ -910,7 +969,7 @@ tryCatch({
 }, error = function(e) {
   message("Erro capturado: ", e$message)
 })
-
+}
 # measure residuals
 #ic_distance <-cooks.distance(m, cluster=df$Study)
 ########## Not available for robust rma: ###########
@@ -921,6 +980,7 @@ tryCatch({
 #### Orchard plots
 
 ```{r echo=FALSE, fig.height=8, fig.width=10, message=FALSE, warning=FALSE}
+if (morethan3concentrations)  {
 tryCatch({
 # overall
 p1<-orchard_plot(m, mod = "1", xlab = "Effect size", group = "Study", k = TRUE, g = TRUE, transfm = "none", angle = 0,legend.pos = "top.out") + 
@@ -965,11 +1025,16 @@ p1 + plot_spacer() + plot_spacer()  + p6 + p5 + p3 + plot_layout(design = layout
 })
 
 #point estimate, confidence interval, prediction interval, 
+}
 ```
 
 ## Model 3: + ParticleMaterial
 
-```{r echo=TRUE}
+```{r model 3: +particle material, eval=FALSE, include=FALSE}
+morethan1particlematerial <- length(unique(df$ParticleMaterial))>1
+print(c('more than 1 particle material: ',morethan1particlematerial))
+
+if (morethan1particlematerial)  {
 df_MR <- select(df, c("Year", "StudyID","Study", "EScluster", "ESid","DevelopmentalStage",
                       "ExposureDurationDays","ParticleSizeMean","ParticleMaterial",
                       "yi", "vi"))
@@ -992,12 +1057,17 @@ mMR[[mname1]] <- rma.mv(yi, VCV,random = RE_formula, mods= mods_formula,
                  dfs="contain", level=95) #it will only keep complete cases
 
 nSt_MR <- mMR[[mname1]]$s.nlevels[1] # number of studies
-nEC_MR <- mMR[[mname1]]$s.nlevels[2] # number of ESclusters
+nEC_MR <- mMR[[mname1]]$s.nlevels[2] # number of ESclusters/independent ES
 nES_MR <- mMR[[mname1]]$s.nlevels[3] # number of independent ES
 
+if (length(mMR[[mname1]]$s.nlevels)==3){
 print(paste0("Number of studies: ",nSt_MR,
             ", number of ES clusters: ",nEC_MR,
             " and number of independent observations of ES: ",nES_MR))
+}else{
+  print(paste0("Number of studies: ",nSt_MR,
+            " and number of independent observations of ES: ",nEC_MR))
+}
 
 mMR[[mname2]] <- robust(mMR[[mname1]], cluster = df_MR$Study, clubSandwich = TRUE,verbose=TRUE)
 
@@ -1009,23 +1079,25 @@ anova(mMR[[mname2]], btt=c("DevelopmentalStage","ExposureDurationDays","Particle
 }else if (n_outcome==10){ #for Sensory-motor function
   anova(mMR[[mname2]], btt=c("ExposureDurationDays","ParticleSizeMean","ParticleMaterial"))
 }
-```
-
-The meta-regression comprised `r nES_MR` comparisons from `r nEC_MR` control group clusters of `r nSt_MR` independent studies.
-
-#### Diagnostics plots
-
-```{r echo=TRUE}
 m<-mMR[[mname2]]
 
 summary(m)
 m$fit.stats
+}
+```
+
+#### Diagnostics plots
+
+```{r eval=FALSE, include=FALSE}
+if (morethan1particlematerial)  {
 diagnostic_plots(m)
+}
 ```
 
 #### Influential cases
 
-```{r echo=FALSE, fig.height=8, fig.width=10}
+```{r eval=FALSE, fig.height=8, fig.width=10, include=FALSE}
+if (morethan1particlematerial)  {
 tryCatch({
   distance <- cooks.distance(m, cluster=df$Study)
   distance
@@ -1037,6 +1109,7 @@ tryCatch({
 }, error = function(e) {
   message("Erro capturado: ", e$message)
 })
+}
 
 # measure residuals
 #ic_distance <-cooks.distance(mname2, cluster=df$Study)
@@ -1047,7 +1120,8 @@ tryCatch({
 
 #### Orchard plots
 
-```{r echo=FALSE, fig.height=8, fig.width=10, message=FALSE, warning=FALSE}
+```{r eval=FALSE, fig.height=8, fig.width=10, message=FALSE, warning=FALSE, include=FALSE}
+if (morethan1particlematerial)  {
 # overall
 tryCatch({
 p1<-orchard_plot(m, mod = "1", xlab = "Effect size", group = "Study", k = TRUE, g = TRUE, transfm = "none", angle = 0,legend.pos = "top.out") + 
@@ -1090,7 +1164,7 @@ p1 + plot_spacer() + plot_spacer()  + p7 + p5 + p3 + plot_layout(design = layout
 }, error = function(e) {
   message("Erro capturado: ", e$message)
 })
-
+}
 #point estimate, confidence interval, prediction interval, 
 ```
 # Referências
