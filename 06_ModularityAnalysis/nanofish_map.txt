@@ -1,0 +1,398 @@
+﻿id	label	x	y	cluster	weight<Links>	weight<Total link strength>	weight<Documents>	score<Avg. pub. year>
+1	"abelli, luigi"	-0.4096	0.8989	21	7	11	2	2020
+2	"akemann, camille"	0.3111	0.6953	12	9	9	1	2020
+3	"allan, bridie j. m."	0.4842	-0.1238	4	9	9	1	2020
+4	"alomar, carme"	-0.0659	0.0022	13	9	9	1	2021
+5	"alvarez, tenilce gabriela da silva"	-0.0066	0.5575	2	9	9	1	2021
+6	"amadi-eke, akunna"	0.7875	-0.6534	26	5	5	1	2020
+7	"an, youn-joo"	0.4319	0.9319	42	3	3	1	2018
+8	"andresen, thomas l"	-0.6079	0.2421	5	6	6	1	2017
+9	"arechavala-lopez, pablo"	-0.1033	0.0262	13	9	9	1	2021
+10	"audira, gilbert"	0.2891	-0.4703	16	8	8	1	2020
+11	"avwemoya, fred"	0.7912	-0.7094	26	5	5	1	2020
+12	"ašmonaitė, giedrė"	-0.64	0.3225	5	11	11	2	2018.5
+13	"bach, lis"	0.2353	-1.0407	31	5	5	1	2018
+14	"backhaus, thomas"	-0.6503	0.4103	5	5	5	1	2020
+15	"baker, bridget b."	0.3446	0.6112	12	9	9	1	2020
+16	"baker, tracie r."	0.281	0.6356	12	9	9	1	2020
+17	"baran, alper"	-0.3562	0.4401	32	5	5	1	2020
+18	"barboza, luís gabriel antão"	-0.6983	0.7021	6	6	8	2	2018
+19	"baruah, kartik"	0.512	-0.9241	29	6	6	1	2020
+20	"batel, annika"	0.1206	0.1276	1	6	6	1	2019
+21	"batista guimarães, abraão tiago"	-0.2539	0.683	2	6	6	1	2021
+22	"baun, anders"	-0.6656	0.2384	5	6	6	1	2017
+23	"beiras, ricardo"	0.1261	0.2137	1	9	9	1	2020
+24	"bellas, juan"	-0.4099	-0.118	25	7	16	3	2020.6667
+25	"benkhalqui, assja"	-0.4492	0.9571	21	6	6	1	2019
+26	"bertolucci, cristiano"	-0.4487	0.9186	21	6	6	1	2019
+27	"besson, marc"	0.7276	-0.4252	36	5	5	1	2019
+28	"bhattacharjee, monojit"	-0.1142	1.0098	38	4	4	1	2021
+29	"bikiaris, dimitrios n."	-0.6824	-0.1333	7	11	11	1	2021
+30	"binelli, andrea"	-0.0348	-0.546	27	6	11	2	2020
+31	"blanc, mélanie"	0.2766	0.1301	1	12	12	1	2021
+32	"blandford, makeely i."	0.3845	-0.1337	4	9	9	1	2020
+33	"bo, jun"	-0.9275	0.0827	8	11	11	1	2021
+34	"bobori, dimitra c."	-0.6662	-0.0231	7	11	11	1	2021
+35	"bour, agathe"	-0.731	0.3029	5	3	3	1	2020
+36	"branco, vasco"	-0.738	0.6989	6	6	6	1	2018
+37	"braunbeck, thomas"	0.1501	0.0954	1	6	6	1	2019
+38	"browne, mark a."	-0.2267	-0.7055	17	8	8	1	2017
+39	"brun, nadja r."	0.7873	-0.058	23	7	7	1	2019
+40	"bueno dos reis martinez, claudia"	-0.8473	-0.6477	41	3	3	1	2020
+41	"burmester, janne k. y."	0.5162	0.381	9	7	7	1	2020
+42	"bégout, marie-laure"	0.1864	0.1941	1	16	27	3	2020
+43	"cabar, mathieu"	0.2764	0.18	1	12	12	1	2021
+44	"cabecinha, edna"	-0.4066	-0.1659	25	6	6	1	2020
+45	"cachot, jérôme"	0.1701	0.2514	1	23	40	5	2019.8
+46	"caliani, ilaria"	-0.3438	0.9386	21	5	5	1	2021
+47	"campos, diana"	0.1719	-0.7643	10	10	10	1	2021
+48	"candeias-mendes, ana"	0.2304	-0.7937	10	10	10	1	2021
+49	"caorsi, g."	0.0459	-0.5225	27	6	6	1	2021
+50	"carney almroth, bethanie"	-0.6986	0.3526	5	8	8	2	2020
+51	"carvalho, cristina"	-0.7347	0.7351	6	6	6	1	2018
+52	"carvalho, felix"	-0.6554	0.7245	6	9	10	2	2017
+53	"castanho, sara"	0.2442	-0.7524	10	10	10	1	2021
+54	"cedervall, tommy"	0.948	0.4476	19	8	14	3	2014.6667
+55	"ceyhun, saltuk buğrahan"	-0.3851	0.4613	32	5	5	1	2020
+56	"chae, yooeun"	0.4474	0.9528	42	3	3	1	2018
+57	"chagas, thales quintão"	-0.1004	0.6139	2	13	15	2	2021
+58	"chan, king ming"	-0.9611	0.4852	43	2	2	1	2019
+59	"chapelle, coline"	0.0971	0.3545	1	5	5	1	2019
+60	"charlie-silva, ives"	-0.0321	0.5847	2	9	9	1	2021
+61	"chen, bijuan"	-0.973	-0.2925	20	8	9	2	2018.5
+62	"chen, jung-ren"	0.2303	-0.4029	16	8	8	1	2020
+63	"chen, kelvin h.-c."	0.256	-0.4244	16	8	8	1	2020
+64	"chen, lingxin"	0.6307	0.818	33	5	5	1	2020
+65	"chen, mengyun"	-0.9915	0.1051	8	11	11	1	2021
+66	"chen, mingliang"	-0.9559	0.1426	8	11	11	1	2021
+67	"chen, qiqing"	0.1024	-0.1651	11	10	11	2	2018.5
+68	"chen, zai-zhong"	0.5418	-0.6133	22	7	7	1	2018
+69	"cheng, jinping"	-0.4396	-1.0504	45	1	2	2	2020
+70	"chernick, melissa"	-0.9321	0.1693	8	11	11	1	2021
+71	"ching-fong yeung, kirsten"	-0.9426	0.4985	43	2	2	1	2019
+72	"chinonyerem, delight"	0.8053	-0.6779	26	5	5	1	2020
+73	"chivers, douglas p."	0.4187	-0.1239	4	9	9	1	2020
+74	"cho, hyun-ju"	-0.0823	-0.9938	18	8	8	1	2019
+75	"choi, jin soo"	1.0745	0.0192	39	4	4	1	2018
+76	"chouvellon, fannie"	0.2048	0.3569	1	8	8	1	2020
+77	"clérandeau, christelle"	0.2055	0.2871	1	21	34	4	2020
+78	"coffin, scott"	0.2117	1.0814	40	4	4	1	2020
+79	"compa, montserrat"	-0.0672	0.0382	13	9	9	1	2021
+80	"cormier, bettie"	0.1744	0.1527	1	16	27	3	2020
+81	"cousin, xavier"	0.2143	0.1177	1	16	27	3	2020
+82	"crebassa, jean-claude"	0.2373	0.2182	1	14	21	2	2020.5
+83	"critchell, kay"	-1.4006	-0.0075	46	1	1	1	2018
+84	"cui, hongwu"	-0.9694	-0.3468	20	5	5	1	2019
+85	"da costa araújo, amanda pereira"	-0.0972	0.5493	2	10	11	2	2020.5
+86	"danion, morgane"	0.2355	0.3983	1	8	8	1	2020
+87	"de andrade vieira, julya emmanuela"	-0.1445	0.5352	2	2	2	1	2020
+88	"de oliveira, joão pedro justiniano"	-0.1089	0.7299	2	5	5	1	2021
+89	"del giacco, luca"	0.0141	-0.4943	27	6	11	2	2020
+90	"della torre, camilla"	-0.0061	-0.5741	27	6	11	2	2020
+91	"deudero, salud"	-0.0845	-0.0271	13	9	9	1	2021
+92	"di giulio, richard t."	-0.592	-0.8318	14	9	15	3	2018.6667
+93	"diamond, miriam l."	-0.2561	-0.6527	17	8	8	1	2017
+94	"dimitriadi, anastasia"	-0.6508	-0.099	7	11	11	1	2021
+95	"ding, jiannan"	-0.2036	-0.303	15	9	18	3	2019.6667
+96	"dinh, khuong v."	0.2279	-1.0751	31	5	5	1	2018
+97	"du, xueying"	-0.1547	0.2886	28	6	6	1	2021
+98	"dubocq, florian"	0.2948	0.2266	1	12	12	1	2021
+99	"dubreil, laurence"	0.1929	0.4006	1	8	8	1	2020
+100	"egnew, nathan"	0.5508	-0.8783	29	6	6	1	2020
+101	"ekvall, mikael t."	0.9563	0.356	19	5	5	1	2015
+102	"estrela, fernanda neves"	-0.193	0.7017	2	11	17	3	2021
+103	"fakan, eric p."	0.4479	-0.1093	4	9	9	1	2020
+104	"fang, chao"	-1.0188	0.1659	8	11	11	1	2021
+105	"fang, hao"	0.8233	0.203	34	5	5	1	2019
+106	"feidantsis, konstantinos"	-0.7234	-0.0725	7	11	11	1	2021
+107	"ferrari, maud c. o."	0.3971	-0.0926	4	9	9	1	2020
+108	"ferreira, pedro"	-0.5637	0.696	6	6	10	3	2015.6667
+109	"figueiredo, neusa"	-0.7004	0.7426	6	6	6	1	2018
+110	"fischer, hayden"	0.5182	-0.8896	29	6	6	1	2020
+111	"fonte, elsa"	-0.5916	0.6733	6	6	10	3	2015.6667
+112	"fossi, maria cristina"	-0.4096	0.9775	21	7	11	2	2020
+113	"freeman, jennifer l."	0.5363	0.1203	35	5	5	1	2020
+114	"freitas, ítalo nascimento"	-0.0024	0.6081	2	9	9	1	2021
+115	"frohm, birgitta"	0.8752	0.4272	19	4	4	1	2012
+116	"fu, longwen"	0.6329	0.787	33	5	5	1	2020
+117	"fu, zhengwei"	-0.4726	-0.4306	3	9	10	2	2020
+118	"félix, luís"	-0.3323	-0.1066	25	7	16	3	2020.6667
+119	"gao, jian-zhong"	0.5103	-0.6249	22	7	7	1	2018
+120	"garcía-marcos, karlos"	-0.1536	0.0235	13	9	9	1	2021
+121	"geitner, nick"	-0.5331	-0.8312	14	8	8	1	2018
+122	"geng, jinju"	-0.1509	-0.3787	15	8	14	2	2020.5
+123	"genizegkini, eleni"	-0.7153	-0.1139	7	11	11	1	2021
+124	"ghilardi, anna"	0.0324	-0.5621	27	6	11	2	2020
+125	"gilson, arthur"	0.7376	-0.3965	36	5	5	1	2019
+126	"gravato, carlos"	0.1906	-0.7337	10	10	10	1	2021
+127	"guilhermino, lúcia"	-0.6431	0.6697	6	12	20	6	2017
+128	"guimarães, abraão tiago batista"	-0.0912	0.6633	2	15	20	3	2021
+129	"gulizia, alexandra m."	0.4708	-0.0824	4	9	9	1	2020
+130	"gundlach, michael"	0.0591	-0.1959	11	6	6	1	2017
+131	"guven, olgac"	0.2047	-1.022	31	5	5	1	2018
+132	"han, yu"	-0.1468	0.3223	28	6	6	1	2021
+133	"hansson, lars-anders"	0.928	0.4204	19	8	14	3	2014.6667
+134	"haramis, anna-pavlina g."	0.7315	-0.0813	23	7	7	1	2019
+135	"he, chao"	-0.4723	-0.3788	3	4	4	1	2021
+136	"he, shuiqing"	-0.9701	0.0659	8	11	11	1	2021
+137	"hinton, david e."	-0.9758	0.1821	8	11	11	1	2021
+138	"hollert, henner"	0.1333	-0.1886	11	10	11	2	2018.5
+139	"holzman, roi"	0.5296	-0.2789	4	5	5	1	2021
+140	"hong, nam-hui"	1.0884	0.0434	39	4	4	1	2018
+141	"hong, sang hee"	1.07	0.0639	39	4	4	1	2018
+142	"hoogenboom, mia o."	-1.3997	0.0067	46	1	1	1	2018
+143	"hsiao, chung-der"	0.3157	-0.4358	16	8	8	1	2020
+144	"hu, qinglian"	-0.4994	-0.3595	3	4	4	1	2021
+145	"huang, jing"	-0.6837	-0.4312	3	8	8	1	2020
+146	"huang, yejing"	-0.2335	-0.3368	15	8	14	2	2020.5
+147	"huh, yang hoon"	-0.1735	-0.9807	18	8	8	1	2019
+148	"hunting, ellard r."	0.7976	-0.1179	23	7	7	1	2019
+149	"huppertsberg, sven"	0.6396	0.4965	9	8	8	1	2020
+150	"höjesjö, johan"	-0.7381	0.3291	5	3	3	1	2020
+151	"igberi, christiana"	0.8245	-0.7008	26	5	5	1	2020
+152	"iheanacho, angus"	0.7714	-0.6836	26	5	5	1	2020
+153	"iheanacho, stanley chidi"	0.8331	-0.6564	26	6	6	2	2020
+154	"jacob, hugo"	0.7629	-0.379	36	5	5	1	2019
+155	"jayasundara, nishad"	-0.5524	-0.8643	14	8	8	1	2018
+156	"jeong, jinyoung"	-0.1409	-0.971	18	8	8	1	2019
+157	"ji, yunxia"	0.6607	0.7988	33	5	5	1	2020
+158	"jiang, jing"	0.1131	-0.2365	11	6	6	1	2017
+159	"jin, shi-rong"	0.4815	-0.6077	22	7	7	1	2018
+160	"jin, yuanxiang"	-0.5413	-0.4434	3	17	18	3	2020
+161	"johnson, elyse v."	0.9965	0.4351	19	5	5	1	2017
+162	"julià, maría micaela"	-0.1523	-0.0126	13	9	9	1	2021
+163	"jung, youn-joo"	1.0449	0.0533	39	4	4	1	2018
+164	"jølck, rasmus i"	-0.6445	0.2658	5	6	6	1	2017
+165	"kadirvelu, krishna"	-0.1342	1.0282	38	4	4	1	2021
+166	"kalogiannis, stavros"	-0.6576	-0.0623	7	11	11	1	2021
+167	"kang, taejoon"	-0.1498	-1.0109	18	8	8	1	2019
+168	"kastrinaki, georgia"	-0.6129	-0.1106	7	11	11	1	2021
+169	"keiter, steffen h."	0.2221	0.1634	1	16	27	3	2020
+170	"kiflawi, moshe"	0.5017	-0.2919	4	5	5	1	2021
+171	"kim, bongsoo"	-0.1199	-0.9344	18	8	8	1	2019
+172	"kim, dokyung"	0.4109	0.9472	42	3	3	1	2018
+173	"kim, eungwang"	-0.1128	-0.98	18	8	8	1	2019
+174	"kim, hyo-jeong"	-0.1568	-0.9403	18	8	8	1	2019
+175	"kim, shin woong"	0.4264	0.9682	42	3	3	1	2018
+176	"knepper, thomas p."	0.6459	0.4489	9	8	8	1	2020
+177	"koumoundouros, george"	-0.6439	-0.1381	7	11	11	1	2021
+178	"kozal, jordan s."	-0.5566	-0.7613	14	8	13	2	2018
+179	"krais, stefanie"	0.5748	0.4063	9	11	15	2	2020
+180	"kyzas, george z."	-0.626	-0.0369	7	11	11	1	2021
+181	"köhler, heinz-r."	0.5492	0.4761	9	11	15	2	2020
+182	"lackmann, carina"	0.1765	-0.1485	11	5	5	1	2020
+183	"lai, hong"	-0.6255	-0.4906	3	8	8	1	2020
+184	"lai, yu-heng"	0.2826	-0.4361	16	8	8	1	2020
+185	"lambropoulou, dimitra a."	-0.6861	-0.0867	7	11	11	1	2021
+186	"lanctôt, chantal"	0.729	-0.3675	36	5	5	1	2019
+187	"lard, mercy"	0.89	0.458	19	4	4	1	2012
+188	"larsson, maria"	0.3181	0.1509	1	12	12	1	2021
+189	"lauer, mariana machado"	-0.8561	-0.6229	41	3	3	1	2020
+190	"laurent, jennifer"	0.0961	0.3167	1	5	5	1	2019
+191	"le bihanic, florane"	0.257	0.2795	1	19	29	3	2020.3333
+192	"lecchini, david"	0.7626	-0.4155	36	5	5	1	2019
+193	"lee, jeong-soo"	-0.1148	-1.0185	18	8	8	1	2019
+194	"lee, wang sik"	-0.0884	-0.9523	18	8	8	1	2019
+195	"levin, edward d."	-0.5155	-0.7709	14	8	13	2	2018
+196	"li, dan"	-0.9553	0.1058	8	11	11	1	2021
+197	"li, lingli"	-0.934	-0.3581	20	5	5	1	2019
+198	"li, xiaokang"	1.0168	-0.2598	24	7	7	1	2021
+199	"liang, sung-tzu"	0.2991	-0.4	16	8	8	1	2020
+200	"limonta, giacomo"	-0.3765	0.9623	21	7	11	2	2020
+201	"ling, xin"	-0.385	0.1487	30	6	6	1	2021
+202	"linse, sara"	0.9183	0.3876	19	8	14	3	2014.6667
+203	"liu, guangxu"	-0.1874	0.2777	28	6	6	1	2021
+204	"liu, haiyan"	-0.9456	-0.3248	20	5	5	1	2019
+205	"liu, han-peng"	0.5524	-0.5813	22	7	7	1	2018
+206	"liu, jianchao"	-0.3533	0.1626	30	6	6	1	2021
+207	"liu, shujiao"	-0.1896	-0.3571	15	8	14	2	2020.5
+208	"liu, ying"	0.5135	-0.5864	22	7	7	1	2018
+209	"liu, yinghan"	0.8317	0.146	34	5	5	1	2019
+210	"liu, yu"	-0.6866	-0.4681	3	8	8	1	2020
+211	"liu, yuxuan"	-0.4171	0.1337	30	6	6	1	2021
+212	"lu, guanghua"	-0.3825	0.183	30	6	6	1	2021
+213	"luzio, ana"	-0.3283	-0.146	25	7	16	3	2020.6667
+214	"luís, luís g."	-0.5423	0.6546	6	4	4	1	2015
+215	"machado, monica rodrigues ferreira"	-0.0468	0.5412	2	9	9	1	2021
+216	"magni, stefano"	-0.0257	-0.5057	27	6	11	2	2020
+217	"magnuson, jason t."	0.1677	1.0886	40	4	4	1	2020
+218	"magnér, jörgen"	-0.6815	0.3988	5	5	5	1	2020
+219	"mak, chu wa"	-0.9635	0.5075	43	2	2	1	2019
+220	"malafaia, guilherme"	-0.1498	0.6206	2	19	28	5	2020.8
+221	"malhotra, nemi"	0.2658	-0.3867	16	8	8	1	2020
+222	"malmendal, anders"	0.9988	0.3836	19	6	10	2	2016
+223	"man, mingsan"	0.6168	0.7609	33	5	5	1	2020
+224	"mancia, annalaura"	-0.4082	0.9381	21	7	11	2	2020
+225	"manica, andrea"	0.5299	-0.247	4	5	5	1	2021
+226	"mariani, patrizio"	0.2069	-1.0527	31	5	5	1	2018
+227	"marinho da luz, thiarlen"	-0.2565	0.6308	2	6	6	1	2021
+228	"martins, roberto"	0.2268	-0.7173	10	10	10	1	2021
+229	"massarsky, andrey"	-0.4961	-0.8055	14	8	13	2	2018
+230	"matos, carlos"	-0.346	-0.0625	25	5	5	1	2021
+231	"mattsson, karin"	0.9685	0.4002	19	6	10	2	2016
+232	"mccormick, mark i."	0.4302	-0.0733	4	9	9	1	2020
+233	"mennigen, jan alexander"	-0.6212	-0.4227	3	8	8	1	2020
+234	"metian, marc"	0.7071	-0.3959	36	5	5	1	2019
+235	"meyer, danielle n."	0.3761	0.6715	12	9	9	1	2020
+236	"mi, kaihang"	0.1073	0.8728	37	5	5	1	2020
+237	"miranda, tiago"	-0.6895	0.6219	6	2	2	1	2019
+238	"montalvão, mateus flores"	-0.0674	0.5823	2	9	9	1	2021
+239	"monteiro, sandra m."	-0.3689	-0.1304	25	7	16	3	2020.6667
+240	"morin, bénédicte"	0.1567	0.3123	1	16	22	3	2019.6667
+241	"mu, jingli"	-1.0142	0.0774	8	11	11	1	2021
+242	"munk, peter"	0.1773	-1.0457	31	5	5	1	2018
+243	"nanninga, gerrit b."	0.4738	-0.1976	4	14	14	2	2020.5
+244	"nielsen, torkel gissel"	0.1914	-1.0793	31	5	5	1	2018
+245	"nobrega, rafael henrique"	-0.042	0.6252	2	9	9	1	2021
+246	"odo, gregory e."	0.858	-0.6376	26	1	1	1	2020
+247	"oliveira, miguel"	-0.5686	0.6341	6	4	4	1	2015
+248	"pannetier, pauline"	0.1512	0.3668	1	10	13	2	2019.5
+249	"panti, cristina"	-0.3769	0.9136	21	7	11	2	2020
+250	"papaefthimiou, chrisovalantis"	-0.6992	-0.0424	7	11	11	1	2021
+251	"parenti, camilla carla"	0.0041	-0.5334	27	6	11	2	2020
+252	"park, june-woo"	1.0475	0.0255	39	4	4	1	2018
+253	"parnis, j. mark"	-0.1914	-0.7147	17	8	8	1	2017
+254	"parra, susana"	-0.3634	-0.1782	25	6	11	2	2020.5
+255	"patrício silva, ana l."	0.1347	-0.7571	10	10	10	1	2021
+256	"pedersen, adam f."	0.3414	0.6626	12	9	9	1	2020
+257	"pereira, paulo sérgio"	-0.2121	0.6638	2	9	12	2	2021
+258	"pertzelan, assaf"	0.478	-0.2704	4	5	5	1	2021
+259	"petriv, anna-maria v."	0.3164	0.6449	12	9	9	1	2020
+260	"pitt, jordan a."	-0.5508	-0.7999	14	8	13	2	2018
+261	"plakolm, isolde"	0.4987	-0.2478	4	5	5	1	2021
+262	"pousão-ferreira, pedro"	0.1531	-0.797	10	10	10	1	2021
+263	"priyadarshinee, sheela"	-0.095	1.0498	38	4	4	1	2021
+264	"qiang, liyuan"	-0.421	-1.0499	45	1	2	2	2020
+265	"qu, keming"	-0.987	-0.2513	20	4	4	1	2018
+266	"ramesh, mathan"	-0.09	1.0232	38	4	4	1	2021
+267	"razanajatovo, roger mamitiana"	-0.1283	-0.2698	15	4	4	1	2018
+268	"reiner, eric j."	-0.2615	-0.7218	17	8	8	1	2017
+269	"reitter, katharina"	0.6123	0.4703	9	8	8	1	2020
+270	"renukdas, nilima"	0.5241	-0.8556	29	6	6	1	2020
+271	"rezbach, felizitas"	0.5933	0.5062	9	8	8	1	2020
+272	"richardson, celia"	0.416	-0.1624	4	9	9	1	2020
+273	"rios-fuster, beatriz"	-0.0989	0.0622	13	9	9	1	2021
+274	"risso, wagner ezequiel"	-0.8716	-0.6563	41	3	3	1	2020
+275	"robson, matthew"	-0.2323	-0.676	17	8	8	1	2017
+276	"rocha, rui j. m."	0.208	-0.7648	10	10	10	1	2021
+277	"rocha, thiago lopes"	-0.144	0.7435	2	5	5	1	2021
+278	"rochman, chelsea m."	-0.2253	-0.7387	17	8	8	1	2017
+279	"roda, jéssica fernanda bernardes"	-0.8807	-0.632	41	3	3	1	2020
+280	"rodrigues, aline sueli de lima"	-0.1438	0.6924	2	8	11	2	2021
+281	"rodrigues, andreia c. m."	0.152	-0.721	10	10	10	1	2021
+282	"romano, nicholas"	0.4918	-0.8676	29	6	6	1	2020
+283	"ruhl, aki s."	0.6122	0.4073	9	11	15	2	2020
+284	"sampsonidis, ioannis"	-0.6122	-0.0722	7	11	11	1	2021
+285	"santos, dércia"	-0.383	-0.0884	25	7	16	3	2020.6667
+286	"sarasamma, sreeja"	0.2525	-0.4684	16	8	8	1	2020
+287	"schaaf, marcel j. m."	0.7371	-0.1148	23	7	7	1	2019
+288	"schaber, andy"	0.5931	0.1296	35	5	5	1	2020
+289	"schlenk, daniel"	0.1928	1.1009	40	4	4	1	2020
+290	"schmieg, hannah"	0.5458	0.4388	9	11	15	2	2020
+291	"seiler, thomas-benjamin"	0.1441	-0.1439	11	5	5	1	2020
+292	"selck, henriette"	-0.6358	0.2232	5	6	6	1	2017
+293	"sepúlveda, maria s."	0.541	0.1559	35	5	5	1	2020
+294	"serrato, sebastian"	-0.2715	-0.6874	17	8	8	1	2017
+295	"shen, manlu"	-0.4661	-0.4745	3	6	6	1	2019
+296	"sheng, cheng"	0.8559	0.6887	44	2	2	1	2021
+297	"shi, huahong"	0.13	-0.1141	11	5	5	1	2020
+298	"shi, wei"	-0.1283	0.2655	28	6	6	1	2021
+299	"shi, xiaotao"	-0.9746	-0.2232	20	4	4	1	2018
+300	"shields, jeremiah n."	0.3475	0.7001	12	9	9	1	2020
+301	"shrivastava, jyotsna"	0.5445	-0.9124	29	6	6	1	2020
+302	"silic, martin r."	0.5681	0.1046	35	5	5	1	2020
+303	"silva, abner marcelino"	-0.2812	0.6586	2	6	6	1	2021
+304	"silva, fabiano guimarães"	-0.212	0.6245	2	9	12	2	2021
+305	"sinha, amit kumar"	0.4852	-0.9017	29	6	6	1	2020
+306	"siregar, petrus"	0.2258	-0.444	16	8	8	1	2020
+307	"skjolding, lars michael"	-0.6126	0.2757	5	6	6	1	2017
+308	"soares, amadeu m. v. m."	0.1877	-0.698	10	10	10	1	2021
+309	"soares, florbela"	0.1919	-0.8049	10	10	10	1	2021
+310	"soares, m. elisa"	-0.5995	0.7278	6	4	4	1	2016
+311	"solomando martí, antònia"	-0.1207	-0.038	13	9	9	1	2021
+312	"soto, abraham l."	0.2855	0.6725	12	9	9	1	2020
+313	"sturve, joachim"	-0.6881	0.2826	5	9	9	2	2018.5
+314	"su, xiaojuan"	0.9666	-0.2947	24	7	7	1	2021
+315	"sulukan, ekrem"	-0.4024	0.4062	32	5	5	1	2020
+316	"sun, liwei"	-0.6502	-0.4533	3	8	8	1	2020
+317	"sun, shuge"	-0.121	0.2989	28	6	6	1	2021
+318	"sureda, antoni"	-0.1352	0.0523	13	9	9	1	2021
+319	"sökmen, teoman özgür"	-0.3856	0.4309	32	5	5	1	2020
+320	"tang, yu"	-0.1796	0.3117	28	6	6	1	2021
+321	"teh, swee j."	-0.2122	-0.648	17	8	8	1	2017
+322	"tisler, selina"	0.5526	0.3691	9	7	7	1	2020
+323	"tivefälth, malin"	-0.6292	0.383	5	5	5	1	2020
+324	"trevisan, rafael"	-0.5964	-0.7916	14	9	15	3	2018.6667
+325	"triebskorn, rita"	0.5832	0.4441	9	11	15	2	2020
+326	"tsou, wei-ling"	0.3091	0.6071	12	9	9	1	2020
+327	"tu, wenqing"	-0.6538	-0.4103	3	8	8	1	2020
+328	"tudorache, christian"	0.7669	-0.1304	23	7	7	1	2019
+329	"türkoğlu, medine"	-0.3669	0.4063	32	5	5	1	2020
+330	"umamaheswari, sathisaran"	-0.1225	1.0535	38	4	4	1	2021
+331	"uzochukwu, daniel"	-0.6435	-0.8148	14	2	2	1	2020
+332	"vamvounis, george"	0.4527	-0.1483	4	9	9	1	2020
+333	"van arkel, kim"	0.2477	0.3576	1	8	8	1	2020
+334	"van hage, patrick"	0.8075	-0.0857	23	7	7	1	2019
+335	"velki, mirna"	0.0818	-0.2517	11	6	6	1	2017
+336	"vieira, luís russo"	-0.7063	0.6632	6	7	10	3	2018.3333
+337	"vijver, martina g."	0.7538	-0.0562	23	7	7	1	2019
+338	"vink, suzanne c."	0.7691	-0.0921	23	7	7	1	2019
+339	"vliet, sara m. f."	0.1995	1.057	40	4	4	1	2020
+340	"volz, david c."	0.1717	1.0616	40	4	4	1	2020
+341	"wan, zepeng"	0.9834	-0.2652	24	7	7	1	2021
+342	"wan, zhiqin"	-0.4329	-0.5008	3	6	6	1	2019
+343	"wang, caiyun"	-0.4332	-0.4658	3	6	6	1	2019
+344	"wang, chuyu"	0.6526	0.7638	33	5	5	1	2020
+345	"wang, degao"	0.8173	0.1728	34	5	5	1	2019
+346	"wang, hui"	-0.5049	-0.3907	3	4	4	1	2021
+347	"wang, qiyu"	-0.6613	-0.4943	3	8	8	1	2020
+348	"wang, se"	0.7952	0.1521	34	5	5	1	2019
+349	"wang, weiye"	0.1659	-0.1139	11	5	5	1	2020
+350	"wang, xiaoyu"	-0.4911	-0.4961	3	6	6	1	2019
+351	"wang, yonghua"	-0.3893	0.1139	30	6	6	1	2021
+352	"wang, yunqing"	0.6035	0.7943	33	5	5	1	2020
+353	"wang, zhenyu"	-0.2265	-0.3797	15	8	14	2	2020.5
+354	"wang, zhuang"	0.791	0.1881	34	5	5	1	2019
+355	"wasel, ola"	0.5631	0.1352	35	5	5	1	2020
+356	"wei, wenzhi"	0.1421	0.8659	37	5	5	1	2020
+357	"wen, bin"	0.4775	-0.5745	22	7	7	1	2018
+358	"westberg, emelie"	-0.6598	0.3721	5	5	5	1	2020
+359	"wiesner, mark"	-0.5025	-0.8524	14	8	8	1	2018
+360	"wu, dong"	-1.0312	0.1214	8	11	11	1	2021
+361	"wu, donghai"	-0.3574	0.1275	30	6	6	1	2021
+362	"wu, fan"	-0.9133	-0.3281	20	5	5	1	2019
+363	"xia, bin"	-0.9493	-0.2405	20	4	4	1	2018
+364	"xia, mengli"	1.0413	-0.2828	24	7	7	1	2021
+365	"xie, lingtian"	-0.916	0.126	8	11	11	1	2021
+366	"xiong, haoran"	0.0898	0.8415	37	5	5	1	2020
+367	"xu, zhe"	0.5341	-0.5533	22	7	7	1	2018
+368	"xue, wen"	0.1467	0.8312	37	5	5	1	2020
+369	"yan, zhenhua"	-0.4133	0.1678	30	6	6	1	2021
+370	"yang, hui"	0.1148	0.8153	37	5	5	1	2020
+371	"yang, huilin"	-0.6126	-0.4577	3	8	8	1	2020
+372	"yang, shouye"	0.0539	-0.2304	11	6	6	1	2017
+373	"ye, nan"	0.8481	0.1774	34	5	5	1	2019
+374	"yeung, leo"	0.3291	0.1981	1	12	12	1	2021
+375	"yin, daqiang"	0.0895	-0.212	11	6	6	1	2017
+376	"yin, liyun"	-0.9393	-0.2828	20	8	9	2	2018.5
+377	"young, thomas"	-0.1901	-0.6787	17	8	8	1	2017
+378	"yuan, peng"	1.0115	-0.3357	24	7	7	1	2021
+379	"zhang, guangsheng"	-0.1888	-0.4076	15	7	7	1	2021
+380	"zhang, nan"	0.5005	-0.5501	22	7	7	1	2018
+381	"zhang, rui"	0.5774	0.1622	35	5	5	1	2020
+382	"zhang, shanshan"	-0.1723	-0.273	15	8	11	2	2019
+383	"zhang, shenghu"	0.8328	0.6887	44	2	2	1	2021
+384	"zhang, xingli"	1.0389	-0.316	24	7	7	1	2021
+385	"zhang, yan"	0.845	0.6692	44	2	2	1	2021
+386	"zhang, yingying"	0.1197	0.8456	37	5	5	1	2020
+387	"zhang, yongli"	0.3714	0.6334	12	9	9	1	2020
+388	"zhang, yu ting"	-0.9921	0.1416	8	11	11	1	2021
+389	"zhou, chunyu"	1.0052	-0.2969	24	7	7	1	2021
+390	"zhou, jiajie"	-0.4626	-0.5172	3	6	6	1	2019
+391	"zhou, weishang"	-0.1614	0.255	28	6	6	1	2021
+392	"zhu, wenbin"	-0.1651	-0.3199	15	9	18	3	2019.6667
+393	"zou, hua"	-0.1289	-0.333	15	9	18	3	2019.6667
+394	"zou, wei"	0.9792	-0.3258	24	7	7	1	2021
+395	"zwiener, christian"	0.5064	0.418	9	7	7	1	2020
+396	"álvarez, elvira"	-0.1166	-0.0017	13	9	9	1	2021
+397	"özkaraca, mustafa"	-0.4145	0.4406	32	5	5	1	2020
